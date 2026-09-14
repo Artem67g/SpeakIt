@@ -232,7 +232,7 @@ class ConfigMerge(unittest.TestCase):
         self.assertEqual(config_module.DEFAULTS["model"]["final"], before)
 
     def test_defaults_that_were_chosen_by_measurement(self):
-        # These have measurements behind them in docs/accuracy.md. If you are
+        # These were chosen by measurement. If you are
         # changing one, change it here too and say why in the pull request.
         rec = config_module.DEFAULTS["recording"]
         self.assertEqual(rec["vad_aggressiveness"], 1)
@@ -330,6 +330,103 @@ class KeyFile(unittest.TestCase):
             backend, env = self._backend(tmp)
             with env:
                 self.assertEqual(backend.api_key, "test-key-new")
+
+
+from speakit import languages  # noqa: E402
+
+
+class LanguageList(unittest.TestCase):
+    """Adding and removing languages from the tray."""
+
+    def _cfg(self, codes, pinned=""):
+        import copy
+
+        cfg = copy.deepcopy(config_module.DEFAULTS)
+        cfg["transcription"]["cloud"]["languages"] = list(codes)
+        cfg["model"]["language"] = pinned
+        cfg["model"]["language_menu"] = languages.menu_for(codes)
+        return cfg
+
+    def test_adding_updates_both_lists(self):
+        cfg = self._cfg(["en"])
+        self.assertEqual(languages.toggle(cfg, "fr"), "added")
+        self.assertEqual(cfg["transcription"]["cloud"]["languages"],
+                         ["en", "fr"])
+        self.assertEqual(cfg["model"]["language_menu"],
+                         {"Auto-detect": "", "English": "en", "French": "fr"})
+
+    def test_removing_a_pinned_language_unpins_it(self):
+        cfg = self._cfg(["en", "de"], pinned="de")
+        self.assertEqual(languages.toggle(cfg, "de"), "removed")
+        self.assertEqual(cfg["transcription"]["cloud"]["languages"], ["en"])
+        self.assertEqual(cfg["model"]["language"], "")
+        self.assertNotIn("German", cfg["model"]["language_menu"])
+
+    def test_the_last_language_stays(self):
+        cfg = self._cfg(["en"])
+        self.assertEqual(languages.toggle(cfg, "en"), "kept")
+        self.assertEqual(cfg["transcription"]["cloud"]["languages"], ["en"])
+
+    def test_the_list_is_edited_in_place(self):
+        # The tray keeps a reference to this list to draw its checkmarks.
+        cfg = self._cfg(["en"])
+        held = cfg["transcription"]["cloud"]["languages"]
+        languages.toggle(cfg, "kk")
+        self.assertIs(held, cfg["transcription"]["cloud"]["languages"])
+        self.assertEqual(held, ["en", "kk"])
+
+    def test_reconcile_keeps_what_either_list_named(self):
+        cfg = self._cfg(["en"], pinned="es")
+        cfg["model"]["language_menu"] = {
+            "Auto-detect": "", "English": "en", "French": "fr"}
+        self.assertTrue(languages.reconcile(cfg))
+        self.assertEqual(cfg["transcription"]["cloud"]["languages"],
+                         ["en", "fr", "es"])
+        self.assertFalse(languages.reconcile(cfg))
+
+    def test_the_defaults_already_agree(self):
+        import copy
+
+        cfg = copy.deepcopy(config_module.DEFAULTS)
+        self.assertFalse(languages.reconcile(cfg))
+
+    def test_unknown_codes_are_shown_as_codes(self):
+        self.assertEqual(languages.name("xx"), "xx")
+        self.assertIn("xx", languages.catalog(["en", "xx"]))
+        self.assertEqual(languages.catalog([])[0], "af")
+
+
+class LanguageGroups(unittest.TestCase):
+    """The letter submenus under Add or remove languages."""
+
+    def setUp(self):
+        self.codes = languages.catalog(["en", "xx"])
+        self.groups = languages.groups(self.codes)
+
+    def test_every_language_is_in_exactly_one_group(self):
+        flat = [code for _, codes in self.groups for code in codes]
+        self.assertEqual(sorted(flat), sorted(self.codes))
+
+    def test_no_group_runs_off_the_screen(self):
+        for label, codes in self.groups:
+            self.assertLessEqual(len(codes), languages.GROUP_SIZE, label)
+
+    def test_a_letter_never_spans_two_groups(self):
+        seen = set()
+        for _, codes in self.groups:
+            letters = {languages.name(code)[:1].upper() for code in codes}
+            self.assertFalse(letters & seen)
+            seen |= letters
+
+    def test_labels_name_the_first_and_last_letter(self):
+        for label, codes in self.groups:
+            self.assertEqual(label[0], languages.name(codes[0])[0].upper())
+            self.assertEqual(label[-1], languages.name(codes[-1])[0].upper())
+
+    def test_only_codes_openai_accepts(self):
+        self.assertIn("tl", languages.NAMES)
+        self.assertNotIn("yue", languages.NAMES)
+        self.assertTrue(all(len(code) == 2 for code in languages.NAMES))
 
 
 if __name__ == "__main__":

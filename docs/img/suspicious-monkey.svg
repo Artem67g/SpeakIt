@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <rect width="400" height="400" rx="28" fill="#fdf1dc"/>
+  <!-- ears -->
+  <circle cx="86" cy="196" r="48" fill="#7b4a2b"/>
+  <circle cx="86" cy="196" r="29" fill="#e9b48a"/>
+  <circle cx="314" cy="196" r="48" fill="#7b4a2b"/>
+  <circle cx="314" cy="196" r="29" fill="#e9b48a"/>
+  <!-- head and tuft -->
+  <path d="M184 84 Q192 58 206 80 Q214 60 224 86 Z" fill="#7b4a2b"/>
+  <ellipse cx="200" cy="206" rx="122" ry="126" fill="#8d5733"/>
+  <!-- face -->
+  <path d="M200 128 C156 100 104 126 112 186 C94 226 112 300 200 312 C288 300 306 226 288 186 C296 126 244 100 200 128 Z" fill="#f2c9a1"/>
+  <!-- eyes, looking hard to one side -->
+  <ellipse cx="158" cy="188" rx="30" ry="24" fill="#ffffff"/>
+  <ellipse cx="242" cy="188" rx="30" ry="24" fill="#ffffff"/>
+  <circle cx="178" cy="194" r="12" fill="#2a1a10"/>
+  <circle cx="262" cy="194" r="12" fill="#2a1a10"/>
+  <circle cx="182" cy="190" r="3.5" fill="#ffffff"/>
+  <circle cx="266" cy="190" r="3.5" fill="#ffffff"/>
+  <!-- heavy lids, half shut -->
+  <path d="M124 160 L194 160 L194 184 Q158 176 124 188 Z" fill="#f2c9a1"/>
+  <path d="M206 160 L276 160 L276 188 Q242 176 206 184 Z" fill="#f2c9a1"/>
+  <path d="M127 187 Q158 175 191 183" fill="none" stroke="#5a3620" stroke-width="5" stroke-linecap="round"/>
+  <path d="M209 183 Q242 175 273 187" fill="none" stroke="#5a3620" stroke-width="5" stroke-linecap="round"/>
+  <!-- one brow up, one brow down -->
+  <path d="M126 146 Q156 116 192 138" fill="none" stroke="#4a2c18" stroke-width="9" stroke-linecap="round"/>
+  <path d="M210 156 Q244 148 276 160" fill="none" stroke="#4a2c18" stroke-width="9" stroke-linecap="round"/>
+  <!-- muzzle -->
+  <ellipse cx="200" cy="256" rx="64" ry="46" fill="#f7dbbb"/>
+  <ellipse cx="189" cy="236" rx="6" ry="4.5" fill="#5a3620"/>
+  <ellipse cx="211" cy="236" rx="6" ry="4.5" fill="#5a3620"/>
+  <!-- unimpressed mouth -->
+  <path d="M164 272 Q196 268 234 262" fill="none" stroke="#5a3620" stroke-width="6" stroke-linecap="round"/>
+  <path d="M234 262 Q242 258 244 250" fill="none" stroke="#5a3620" stroke-width="5" stroke-linecap="round"/>
+</svg>

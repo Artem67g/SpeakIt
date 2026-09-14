@@ -48,14 +48,16 @@ jobs:
         run: |
           python -c "import sys; sys.path.insert(0, '.'); from speakit import winjob; print('winjob installs:', winjob.join_kill_on_close())"
 
-      - name: Check the installer parses
+      - name: Check the installer and uninstaller parse
         shell: pwsh
         run: |
-          $errors = $null
-          $null = [System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path .\install.ps1), [ref]$null, [ref]$errors)
-          if ($errors) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
-          Write-Host "install.ps1 parses cleanly"
+          foreach ($script in 'install.ps1', 'uninstall.ps1') {
+            $errors = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $script), [ref]$null, [ref]$errors)
+            if ($errors) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
+            Write-Host "$script parses cleanly"
+          }
 
   install:
     name: Installer on a clean Windows
@@ -64,14 +66,46 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Copy the project to where the one-command install puts it
+        # Without .git, because uninstall.ps1 never deletes a git clone.
+        shell: pwsh
+        run: |
+          $dest = Join-Path $env:LOCALAPPDATA 'Programs\SpeakIt'
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Get-ChildItem -Force | Where-Object Name -ne '.git' | Copy-Item -Destination $dest -Recurse -Force
+
       - name: Run install.ps1
         # Windows PowerShell 5.1 on purpose, because that is what every Windows
         # 10 and 11 machine has. The runner's own Python is never touched: the
         # installer gets Python 3.12 through uv. That, plus the pinned lock
         # file, is what this job exists to keep working. No -NoStart would
-        # need a microphone, which a runner does not have.
+        # need a microphone, which a runner does not have. -Backend answers
+        # the question a fresh install asks.
         shell: cmd
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -NoStart -NoAutostart
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File "%LOCALAPPDATA%\Programs\SpeakIt\install.ps1" -NoStart -NoAutostart -Backend local
+
+      - name: Check the answer was saved
+        shell: pwsh
+        run: |
+          $cfg = Get-Content (Join-Path $env:LOCALAPPDATA 'Programs\SpeakIt\config.json') -Raw | ConvertFrom-Json
+          if ($cfg.transcription.backend -ne 'local') { throw "backend is '$($cfg.transcription.backend)', expected 'local'" }
+          # Something for the uninstall to remove. Not a real key.
+          New-Item -ItemType File -Force -Path (Join-Path $env:APPDATA 'SpeakIt\openai.key') -Value 'not-a-key' | Out-Null
+
+      - name: Run uninstall.ps1
+        shell: cmd
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File uninstall.ps1
+
+      - name: Check nothing is left
+        shell: pwsh
+        run: |
+          $left = @(
+            (Join-Path $env:LOCALAPPDATA 'Programs\SpeakIt'),
+            (Join-Path ([Environment]::GetFolderPath('Programs')) 'SpeakIt\SpeakIt.lnk'),
+            (Join-Path $env:APPDATA 'SpeakIt')
+          ) | Where-Object { Test-Path -LiteralPath $_ }
+          if ($left) { $left | ForEach-Object { Write-Error "still there: $_" }; exit 1 }
+          Write-Host "uninstall removed everything"
 
   secrets:
     name: No committed secrets

@@ -10,6 +10,7 @@ rather than logged lands in `logs\stdout.log`.
 The recording was captured and then thrown away by the silence guard. Run:
 
 ```powershell
+cd "$env:LOCALAPPDATA\Programs\SpeakIt"
 .venv\Scripts\python.exe tools\check_mic.py
 ```
 
@@ -36,9 +37,6 @@ away, while silence scored 4.
 `recording.vad_aggressiveness` defaults to `1` for this reason. If you still
 get false rejections, lower `recording.min_speech_run` (12 = 240 ms of
 continuous speech). Raise it instead if room noise is getting through.
-
-The measurements behind those defaults are in
-[accuracy.md](accuracy.md#the-vad-gets-less-sensitive-as-the-input-gets-quieter).
 
 ---
 
@@ -254,6 +252,7 @@ missing key falls back silently rather than losing your recording. Check the
 log for the reason, then confirm the key is found:
 
 ```powershell
+cd "$env:LOCALAPPDATA\Programs\SpeakIt"
 .venv\Scripts\python.exe tools\check_cloud.py
 ```
 
@@ -262,8 +261,8 @@ Key lookup order is `api_key` in the config, then `OPENAI_API_KEY`, then
 
 **An environment variable set after SpeakIt started is invisible to it.** The
 app launches from a Startup shortcut and only inherits variables that existed at
-sign-in. The key file is read per request and has no such problem. Use
-`INSTALL.bat -SetApiKey`.
+sign-in. The key file is read per request and has no such problem. Put the key
+in the install command instead, as the README shows, and it is saved there.
 
 ### "not supported for this model"
 

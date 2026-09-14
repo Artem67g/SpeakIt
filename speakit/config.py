@@ -22,8 +22,9 @@ DEFAULTS = {
         "realtime": "tiny",
         # "" means auto-detect per utterance. Set "en", "ru" or "de" to pin it.
         "language": "",
-        # What the tray's Language submenu offers. Whisper knows ~99
-        # languages, so add any you need: "French": "fr", "Spanish": "es".
+        # The pin list in the tray's Language menu. Rebuilt from
+        # transcription.cloud.languages whenever you add or remove a language
+        # in the tray (Language > Add or remove languages), so change it there.
         "language_menu": {
             "Auto-detect": "",
             "English": "en",
@@ -112,18 +113,21 @@ DEFAULTS = {
             "api_key_env": "OPENAI_API_KEY",
             "api_key": "",
             "api_key_file": "%APPDATA%\\SpeakIt\\openai.key",
-            # The languages you actually speak. This is not decoration: it is
-            # the setting that buys mid-sentence switching. On a Russian
-            # sentence ending in English, gpt-transcribe dropped the English
-            # half with no list and with ["ru", "en"], but transcribed both
-            # halves with the full ["en", "ru", "de"]. Keep every language you
-            # use in here, and keep "en" first.
+            # The languages you speak. The cloud model is told to expect them,
+            # the prompt and keywords are generated from them, and the tray
+            # offers them as the languages you can pin. Change them from the
+            # tray: Language > Add or remove languages.
             #
-            # It copes with more than you might expect. A single 21.8s
-            # utterance that went English -> German -> Russian -> Kazakh came
-            # back correct in all four, across three scripts, in 3.4s. Kazakh
-            # was not even in the list at the time, which suggests the list
-            # steers the model rather than restricting it.
+            # When first measured, on real speech, a Russian sentence ending in
+            # English lost its English half with no list or ["ru", "en"], and
+            # came back whole with ["en", "ru", "de"]. Rerun later on
+            # synthesised speech, every list including none gave the right
+            # answer, so treat it as a steer that costs nothing rather than a
+            # switch you must set.
+            #
+            # A single 21.8s utterance that went English -> German -> Russian
+            # -> Kazakh came back correct in all four, across three scripts, in
+            # 3.4s, with Kazakh not even in the list at the time.
             "languages": ["en", "ru", "de", "kk"],
             # Literal terms you expect it to hear: names, jargon, product
             # names. e.g. ["Kubernetes", "RealtimeSTT", "Grafana"].
@@ -159,14 +163,6 @@ DEFAULTS = {
             # losing what you just said.
             "fallback_to_local": True,
         },
-    },
-    "cleanup": {
-        # Tidy the transcript with a small chat model: drop filler words,
-        # fix punctuation. Needs the same API key. Adds about a second.
-        "enabled": False,
-        "model": "gpt-4o-mini",
-        "instructions": "",
-        "timeout": 20,
     },
     "hotkey": {
         # Hold Ctrl+Alt this long before recording engages. Also what stops

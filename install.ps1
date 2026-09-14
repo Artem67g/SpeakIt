@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Installs SpeakIt, updates it, or removes it.
+    Installs or updates SpeakIt.
 
 .DESCRIPTION
     One command, pasted into PowerShell:
@@ -17,6 +17,16 @@
     install folder. Whatever Python you already have is never used: none,
     3.13, the Microsoft Store one and conda all behave the same.
 
+    With your OpenAI key in the command, it checks the key with OpenAI, saves
+    it, takes it back out of the PowerShell history file, and uses OpenAI:
+
+        $env:OPENAI_API_KEY = "sk-..."; irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1 | iex
+
+    Without one, a fresh install asks whether to transcribe with OpenAI or on
+    this computer, and takes the key there. Updates do not ask again.
+
+    To remove SpeakIt, use uninstall.ps1.
+
     Run it again to update. config.json and the speech models are kept.
 
     If it fails, the window stays open, the last lines say why, and the whole
@@ -27,12 +37,12 @@
     %LOCALAPPDATA%\Programs\SpeakIt. Ignored when this script is run from a
     copy of the project, which installs that copy.
 
-.PARAMETER SetApiKey
-    Prompts for an OpenAI API key and stores it outside the project, readable
-    only by you. Only needed for the cloud backend.
+.PARAMETER Backend
+    openai or local, to answer the question a fresh install asks.
 
-.PARAMETER Uninstall
-    Stops SpeakIt and removes its shortcuts. Leaves the folder and the key.
+.PARAMETER SetApiKey
+    Asks for an OpenAI API key, checks it with OpenAI, and stores it outside
+    the project, readable only by you.
 
 .PARAMETER NoStart
     Set everything up but do not launch the app.
@@ -44,19 +54,20 @@
     # Arguments with the one-command install:
     $s = [scriptblock]::Create((irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1))
     & $s -InstallDir 'D:\Apps\SpeakIt'
+    & $s -Backend local
 
 .EXAMPLE
     # From a copy of the project:
     INSTALL.bat
     INSTALL.bat -SetApiKey
-    UNINSTALL.bat
 #>
 param(
-    [switch]$Uninstall,
     [switch]$SetApiKey,
     [switch]$NoStart,
     [switch]$NoAutostart,
-    [string]$InstallDir
+    [string]$InstallDir,
+    [ValidateSet('ask', 'openai', 'local')]
+    [string]$Backend = 'ask'
 )
 
 # Empty when piped into iex, which is how the one-command install runs.
@@ -72,10 +83,12 @@ $ErrorActionPreference = 'Stop'
 # Invoke-WebRequest is several times slower while drawing its progress bar.
 $ProgressPreference = 'SilentlyContinue'
 
-$AppName   = 'SpeakIt'
-$RepoUrl   = 'https://github.com/Maslitsa/SpeakIt'
+$AppName      = 'SpeakIt'
+$RepoUrl      = 'https://github.com/Maslitsa/SpeakIt'
+$RawInstaller = 'https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1'
+$KeysPage     = 'https://platform.openai.com/api-keys'
 # Lets a branch be tried before it reaches main.
-$Ref       = if ($env:SPEAKIT_REF) { $env:SPEAKIT_REF } else { 'main' }
+$Ref          = if ($env:SPEAKIT_REF) { $env:SPEAKIT_REF } else { 'main' }
 
 # uv is pinned, and checked against the SHA-256 published with that release,
 # because the installer runs it.
@@ -167,6 +180,7 @@ $VenvDir     = Join-Path $Root '.venv'
 $VenvPy      = Join-Path $VenvDir 'Scripts\python.exe'
 $VenvPyW     = Join-Path $VenvDir 'Scripts\pythonw.exe'
 $EntryFile   = Join-Path $Root 'run.py'
+$ConfigFile  = Join-Path $Root 'config.json'
 $StartupDir  = [Environment]::GetFolderPath('Startup')
 $ProgramsDir = [Environment]::GetFolderPath('Programs')
 $StartupLnk  = Join-Path $StartupDir "$AppName.lnk"
@@ -230,34 +244,263 @@ function Remove-Shortcuts([string]$Name) {
 }
 
 # ---------------------------------------------------------------------------
-# API key
+# OpenAI key, and the choice between OpenAI and local
 # ---------------------------------------------------------------------------
 
-function Set-ApiKey {
-    Write-Step 'OpenAI API key'
-    Write-Host '    Paste your key (it is not shown), or press Enter to skip.'
-    Write-Host '    Get one at https://platform.openai.com/api-keys'
-    $secure = Read-Host -AsSecureString '    Key'
-    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-    try {
-        $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-    } finally {
-        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-    }
-    if ([string]::IsNullOrWhiteSpace($plain)) {
-        Write-Note 'skipped. SpeakIt keeps transcribing locally.'
-        return
-    }
-    $plain = $plain.Trim()
-    if ($plain -notmatch '^sk-') {
-        Write-Warning 'That does not look like an OpenAI key. Saving it anyway.'
-    }
+function Test-HaveKey {
+    return (Test-Path -LiteralPath $KeyFile) -or (Test-Path -LiteralPath $LegacyKey)
+}
+
+function Save-ApiKey([string]$Key) {
     New-Item -ItemType Directory -Force -Path $KeyDir | Out-Null
-    [IO.File]::WriteAllText($KeyFile, $plain, (New-Object Text.UTF8Encoding($false)))
+    [IO.File]::WriteAllText($KeyFile, $Key, (New-Object Text.UTF8Encoding($false)))
     # Break inheritance so only this account can read it.
     & icacls $KeyFile /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null
-    Write-Note "saved to $KeyFile, readable only by $($env:USERNAME)."
+    Write-Note "saved to $KeyFile, readable only by $($env:USERNAME)"
+}
+
+function Test-ApiKey([string]$Key) {
+    # Listing models is free and needs nothing but a valid key, so a mistyped
+    # or half-pasted key is caught here instead of at the first dictation.
+    try {
+        $null = Invoke-RestMethod -Uri 'https://api.openai.com/v1/models' -Headers @{ Authorization = "Bearer $Key" } -TimeoutSec 20 -UseBasicParsing
+        return 'valid'
+    } catch {
+        $status = 0
+        try { $status = [int]$_.Exception.Response.StatusCode } catch {}
+        if ($status -eq 401) { return 'invalid' }
+        if ($status) { return "OpenAI answered $status" }
+        return 'OpenAI could not be reached'
+    }
+}
+
+function Format-Key([string]$Key) {
+    # Enough to recognise a key by, never enough to use it.
+    if ($Key.Length -gt 12) {
+        return $Key.Substring(0, 8) + '...' + $Key.Substring($Key.Length - 4)
+    }
+    return 'that key'
+}
+
+function Read-ApiKey {
+    # Returns a key that OpenAI accepted, or $null if the user skipped.
+    $interactive = -not [Console]::IsInputRedirected
+    Write-Host ''
+    Write-Host "    1. Open $KeysPage"
+    Write-Host '    2. Click "Create new secret key", then Copy'
+    Write-Host '    3. Come back here, paste it with Ctrl+V or a right-click, press Enter'
+    Write-Host '       A key starts with sk-. It shows as ***** while you paste, on purpose.'
+    Write-Host ''
+    if ($interactive) {
+        try { Start-Process $KeysPage; Write-Host '    (opened that page in your browser)' } catch {}
+    }
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        $plain = ''
+        try {
+            if ($interactive) {
+                $secure = Read-Host -AsSecureString '    Paste your key, or just press Enter to skip'
+                if ($secure) {
+                    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+                    try {
+                        $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+                    } finally {
+                        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+                    }
+                }
+            } else {
+                # -AsSecureString reads the console itself, never piped input,
+                # and would wait forever for a key nobody can type.
+                $plain = [Console]::In.ReadLine()
+            }
+        } catch {}
+        # A pasted key often brings a space, a line break or quotes with it.
+        $plain = "$plain" -replace '[\s"'']', ''
+        if (-not $plain) { return $null }
+
+        $shown = Format-Key $plain
+        $verdict = Test-ApiKey $plain
+        if ($verdict -eq 'valid') {
+            Write-Note "$shown works"
+            return $plain
+        }
+        if ($verdict -eq 'invalid') {
+            Write-Warning "OpenAI does not accept $shown. Copy the key again with its Copy button and paste all of it."
+            continue
+        }
+        Write-Note "$verdict, so $shown could not be checked. Saving it anyway."
+        return $plain
+    }
+    Write-Note 'OpenAI turned down three keys in a row. Skipping for now.'
+    return $null
+}
+
+function Get-KeptKey {
+    # A key someone keeps in their environment on purpose, as opposed to one
+    # set in the install command.
+    $kept = [Environment]::GetEnvironmentVariable('OPENAI_API_KEY', 'User')
+    if (-not $kept) { $kept = [Environment]::GetEnvironmentVariable('OPENAI_API_KEY', 'Machine') }
+    return $kept
+}
+
+function Remove-KeyFromHistory([string]$Key) {
+    # A key typed into a command lands in PowerShell's history file in plain
+    # text. The command stays there, the key does not.
+    $paths = @(Join-Path $env:APPDATA 'Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt')
+    try { $paths += (Get-PSReadLineOption).HistorySavePath } catch {}
+    $removed = $false
+    foreach ($path in ($paths | Where-Object { $_ } | Select-Object -Unique)) {
+        try {
+            if (-not (Test-Path -LiteralPath $path)) { continue }
+            $text = [IO.File]::ReadAllText($path)
+            if ($text.Contains($Key)) {
+                [IO.File]::WriteAllText($path, $text.Replace($Key, 'sk-...removed'), (New-Object Text.UTF8Encoding($false)))
+                $removed = $true
+            }
+        } catch {}
+    }
+    # And from this window's up-arrow history.
+    try { [Microsoft.PowerShell.PSConsoleReadLine]::ClearHistory() } catch {}
+    try { Clear-History } catch {}
+    if ($removed) { Write-Note 'took the key back out of your PowerShell history' }
+}
+
+function Use-KeyFromCommand {
+    # The easiest way in:
+    #   $env:OPENAI_API_KEY = "sk-..."; irm .../install.ps1 | iex
+    # Returns 'saved', 'rejected', or 'none' when the command had no key.
+    $raw = [Environment]::GetEnvironmentVariable('OPENAI_API_KEY', 'Process')
+    $kept = Get-KeptKey
+    # A key that was already in the environment is not an instruction to
+    # switch to OpenAI on every update. SpeakIt reads that one by itself.
+    if (-not $raw -or $raw -eq $kept) { return 'none' }
+    # Put the variable back the way it was before the command set it.
+    [Environment]::SetEnvironmentVariable('OPENAI_API_KEY', $kept, 'Process')
+
+    Write-Step 'Your OpenAI API key'
+    $key = $raw -replace '[\s"'']', ''
+    if (-not $key -or $key -eq 'PASTE-YOUR-KEY-HERE') {
+        Write-Warning 'The command still says PASTE-YOUR-KEY-HERE. Put your own key between the quotes.'
+        return 'rejected'
+    }
+    Remove-KeyFromHistory $key
+    $shown = Format-Key $key
+    $verdict = Test-ApiKey $key
+    if ($verdict -eq 'invalid') {
+        Write-Warning "OpenAI does not accept $shown. Copy the key again with its Copy button and paste all of it."
+        return 'rejected'
+    }
+    if ($verdict -eq 'valid') {
+        Write-Note "$shown works"
+    } else {
+        Write-Note "$verdict, so $shown could not be checked. Saving it anyway."
+    }
+    Save-ApiKey $key
+    return 'saved'
+}
+
+function Write-KeyHint {
+    Write-Note 'To add one later, run the install command with your key in it:'
+    Write-Note "  `$env:OPENAI_API_KEY = `"sk-...`"; irm $RawInstaller | iex"
+}
+
+function Set-ApiKey {
+    $fromCommand = Use-KeyFromCommand
+    if ($fromCommand -ne 'saved') {
+        if ($fromCommand -eq 'none') { Write-Step 'Your OpenAI API key' }
+        $key = Read-ApiKey
+        if (-not $key) {
+            Write-Note 'Skipped. Nothing was changed.'
+            return
+        }
+        Save-ApiKey $key
+    }
     Write-Note 'The key is read on every request, so there is nothing to restart.'
+    Write-Note 'To use it, click the SpeakIt tray icon: Transcribed by > OpenAI.'
+}
+
+function Select-Backend {
+    # Returns 'cloud' or 'local' to write into config.json, or $null to leave
+    # an existing choice alone. Asked before the long download on purpose, so
+    # the rest of the install can run while nobody is watching.
+    $fromCommand = Use-KeyFromCommand
+    if ($fromCommand -eq 'saved' -and $Backend -ne 'local') {
+        return 'cloud'
+    }
+    $update = Test-Path -LiteralPath $ConfigFile
+    if ($fromCommand -eq 'rejected' -and $Backend -ne 'local') {
+        # A key in the command means OpenAI, so skip the question and ask for
+        # a working key instead.
+        $key = Read-ApiKey
+        if ($key) {
+            Save-ApiKey $key
+            return 'cloud'
+        }
+        Write-Note 'No key for now.'
+        Write-KeyHint
+        if ($update) { return $null }
+        return 'local'
+    }
+    if ($Backend -eq 'ask' -and $update) {
+        return $null
+    }
+
+    $pick = $Backend
+    if ($pick -eq 'ask') {
+        Write-Step 'How should SpeakIt turn your speech into text?'
+        Write-Host ''
+        Write-Host '    1  OpenAI   (recommended)' -ForegroundColor Green
+        Write-Host '       Much more accurate, especially in Russian and German, and the'
+        Write-Host '       only option that keeps up when you switch language in the'
+        Write-Host '       middle of a sentence. Needs an OpenAI API key. Costs about'
+        Write-Host '       $0.006 per minute of speech, roughly $3.60 a month at 20'
+        Write-Host '       minutes a day. Your recordings are sent to OpenAI.'
+        Write-Host ''
+        Write-Host '    2  This computer'
+        Write-Host '       Free, private and works offline, but noticeably less accurate,'
+        Write-Host '       and it loses a language switch unless you pause at it.'
+        Write-Host ''
+        $answer = $null
+        try { $answer = Read-Host '    Press Enter for OpenAI, or type 2 and Enter for this computer' } catch {}
+        $answer = "$answer".Trim()
+        if ($answer -eq '2') {
+            $pick = 'local'
+        } elseif ($answer -eq '' -and [Console]::IsInputRedirected) {
+            # Nobody at the keyboard, as on a CI runner. Do not open a browser
+            # and wait for a key that will never come.
+            $pick = 'local'
+        } else {
+            $pick = 'openai'
+        }
+    }
+    Write-Log "    backend chosen: $pick"
+
+    if ($pick -eq 'local') {
+        Write-Note 'This computer it is. Switch any time from the tray: Transcribed by.'
+        return 'local'
+    }
+    if (Test-HaveKey) {
+        Write-Note 'Found your saved OpenAI key, using it.'
+        return 'cloud'
+    }
+
+    Write-Step 'Your OpenAI API key'
+    $key = Read-ApiKey
+    if (-not $key) {
+        Write-Note 'No key for now, so SpeakIt starts on this computer.'
+        Write-KeyHint
+        return 'local'
+    }
+    Save-ApiKey $key
+    return 'cloud'
+}
+
+function Set-ConfigBackend([string]$Value) {
+    # config.py is standard library only, so this runs before anything is
+    # installed, and config.save() writes the file exactly as the app does.
+    # Single quotes in the Python: Windows PowerShell mangles double quotes
+    # inside arguments passed to native programs.
+    $code = 'import sys; sys.path.insert(0, sys.argv[1]); from speakit import config; c = config.load(); c[''transcription''][''backend''] = sys.argv[2]; config.save(c)'
+    Invoke-Native 'Saving your choice' $VenvPy @('-c', $code, $Root, $Value)
 }
 
 # ---------------------------------------------------------------------------
@@ -308,9 +551,8 @@ function Move-FromVoiceType {
     Remove-Shortcuts $LegacyName
     $legacyDir = Join-Path $env:LOCALAPPDATA "Programs\$LegacyName"
     $oldConfig = Join-Path $legacyDir 'config.json'
-    $newConfig = Join-Path $Root 'config.json'
-    if ((Test-Path -LiteralPath $oldConfig) -and -not (Test-Path -LiteralPath $newConfig)) {
-        Copy-Item -LiteralPath $oldConfig -Destination $newConfig
+    if ((Test-Path -LiteralPath $oldConfig) -and -not (Test-Path -LiteralPath $ConfigFile)) {
+        Copy-Item -LiteralPath $oldConfig -Destination $ConfigFile
         Write-Note 'kept your settings from VoiceType'
     }
     if ((Test-Path -LiteralPath $legacyDir) -and ($legacyDir -ne $Root)) {
@@ -453,6 +695,17 @@ function New-Shortcut([string]$Path) {
     Write-Note "created $Path"
 }
 
+function Test-ShortcutPointsHere([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return $false }
+    try {
+        $shell = New-Object -ComObject WScript.Shell
+        $arguments = $shell.CreateShortcut($Path).Arguments
+        return $arguments.IndexOf($EntryFile, [StringComparison]::OrdinalIgnoreCase) -ge 0
+    } catch {
+        return $false
+    }
+}
+
 function Start-SpeakIt {
     $proc = Start-Process -FilePath $VenvPyW -ArgumentList ('"{0}"' -f $EntryFile) -WorkingDirectory $Root -PassThru
     # The app claims its single-instance mutex as soon as it starts, before
@@ -482,21 +735,6 @@ function Start-SpeakIt {
 # Main
 # ---------------------------------------------------------------------------
 
-function Invoke-Uninstall {
-    Write-Step 'Stopping SpeakIt'
-    Stop-SpeakIt
-    Write-Step 'Removing shortcuts'
-    Remove-Shortcuts $AppName
-    Remove-Shortcuts $LegacyName
-    Write-Host ''
-    Write-Host 'SpeakIt will no longer start. Still on disk, delete them if you want them gone:' -ForegroundColor Green
-    Write-Host "    $Root"
-    foreach ($key in @($KeyFile, $LegacyKey)) {
-        if (Test-Path -LiteralPath $key) { Write-Host "    $key" }
-    }
-    Write-Host '    the speech models, in %USERPROFILE%\.cache\huggingface'
-}
-
 function Invoke-Install {
     Assert-CanInstall
 
@@ -511,6 +749,9 @@ function Invoke-Install {
         throw "run.py is not in $Root. Run this script from inside the SpeakIt folder."
     }
     Move-FromVoiceType
+
+    $choice = Select-Backend
+
     Confirm-VCRuntime
 
     Set-ProcessEnv 'UV_CACHE_DIR' (Join-Path $UvDir 'cache')
@@ -525,6 +766,10 @@ function Invoke-Install {
     if (-not (Test-Venv)) {
         Write-Step 'Getting Python 3.12 for SpeakIt (your own Python is not touched)'
         Invoke-Native 'Creating the environment' $uv @('venv', '--clear', '--managed-python', '--python', $PythonRequest, $VenvDir)
+    }
+
+    if ($choice) {
+        Set-ConfigBackend $choice
     }
 
     Write-Step 'Installing packages (about 1 GB and a few minutes the first time)'
@@ -542,7 +787,9 @@ function Invoke-Install {
 
     Write-Step 'Creating shortcuts'
     if ($NoAutostart) {
-        if (Test-Path -LiteralPath $StartupLnk) { Remove-Item -LiteralPath $StartupLnk -Force }
+        # Only if it starts this copy. Another install's autostart is not ours
+        # to remove.
+        if (Test-ShortcutPointsHere $StartupLnk) { Remove-Item -LiteralPath $StartupLnk -Force }
         Write-Note 'not starting with Windows (-NoAutostart)'
     } else {
         New-Shortcut $StartupLnk
@@ -554,11 +801,14 @@ function Invoke-Install {
         Start-SpeakIt
     }
 
-    if ((Test-Path -LiteralPath $KeyFile) -or (Test-Path -LiteralPath $LegacyKey)) {
-        $keyState = 'set'
+    if ($choice -eq 'cloud') {
+        $engineState = 'OpenAI'
+    } elseif ($choice -eq 'local') {
+        $engineState = 'this computer'
     } else {
-        $keyState = 'not set, transcribing locally'
+        $engineState = 'as before'
     }
+    if (Test-HaveKey) { $keyState = 'saved' } else { $keyState = 'none' }
     if ($NoAutostart) { $autoState = 'off' } else { $autoState = 'on' }
 
     Write-Host ''
@@ -571,17 +821,20 @@ function Invoke-Install {
   Tap  Ctrl+Alt     hands-free, stops when you stop talking
   Any other key     cancels
 
-  Folder       $Root
-  OpenAI key   $keyState
-  Autostart    $autoState
+  Transcribed by   $engineState
+  OpenAI key       $keyState
+  Autostart        $autoState
+  Folder           $Root
 
-  The microphone icon in the tray has the settings and Quit.
+  Everything else is in the microphone icon in the tray:
+    Language > Add or remove languages   the languages you speak
+    Transcribed by                       OpenAI or this computer
 
   Something wrong?   double-click CHECKUP.bat in the folder above
   Remove it          double-click UNINSTALL.bat in the same folder
 
-  To use OpenAI instead of the local model, add a key in PowerShell with:
-  & ([scriptblock]::Create((irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1))) -SetApiKey
+  To add or change your OpenAI key, run the install command with it:
+  `$env:OPENAI_API_KEY = "sk-..."; irm $RawInstaller | iex
 "@
 }
 
@@ -603,9 +856,7 @@ try {
     Set-Content -LiteralPath $LogFile -Value "SpeakIt installer, $(Get-Date -Format s)" -Encoding UTF8
     Write-Log ("PowerShell {0} | {1} | {2} | root {3}" -f $PSVersionTable.PSVersion, [Environment]::OSVersion.VersionString, $env:PROCESSOR_ARCHITECTURE, $Root)
 
-    if ($Uninstall) {
-        Invoke-Uninstall
-    } elseif ($SetApiKey) {
+    if ($SetApiKey) {
         Set-ApiKey
     } else {
         Invoke-Install

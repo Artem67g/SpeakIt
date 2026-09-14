@@ -35,5 +35,5 @@ keyboard>=0.13.5
 pystray>=0.19.5
 pillow>=10.0
 
-# OpenAI speech-to-text and the optional cleanup pass.
+# OpenAI speech-to-text.
 httpx>=0.27

@@ -12,6 +12,8 @@ import threading
 import pystray
 from PIL import Image, ImageDraw
 
+from . import languages as language_names
+
 logger = logging.getLogger("speakit.tray")
 
 _IDLE = (233, 236, 241)
@@ -46,11 +48,10 @@ class Tray:
         on_quit,
         on_language=None,
         language="",
-        language_options=None,
+        languages=None,
+        on_toggle_language=None,
         on_backend=None,
         backend="local",
-        on_cleanup=None,
-        cleanup=False,
     ):
         self._config_path = config_path
         self._log_dir = log_dir
@@ -59,14 +60,12 @@ class Tray:
         self._on_quit = on_quit
         self._on_language = on_language
         self._language = language or ""
-        self._language_options = language_options or {
-            "Auto-detect": "",
-            "English": "en",
-        }
+        # The app's own list, not a copy. Adding or removing a language edits
+        # it in place, so the checkmarks below always show the current state.
+        self._languages = languages if languages is not None else ["en"]
+        self._on_toggle_language = on_toggle_language
         self._on_backend = on_backend
         self._backend = backend or "local"
-        self._on_cleanup = on_cleanup
-        self._cleanup = bool(cleanup)
 
         self._status = "Starting…"
         self._paused = False
@@ -95,11 +94,6 @@ class Tray:
             ),
             pystray.MenuItem("Language", self._language_menu()),
             pystray.MenuItem("Transcribed by", self._backend_menu()),
-            pystray.MenuItem(
-                "Clean up with AI",
-                self._toggle_cleanup,
-                checked=lambda _: self._cleanup,
-            ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Edit settings", self._open_config),
             pystray.MenuItem("Open logs", self._open_logs),
@@ -108,17 +102,62 @@ class Tray:
         )
 
     def _language_menu(self):
-        """Radio list for pinning the language when auto-detect misfires."""
-        options = tuple((self._language_options or {}).items())
-        return pystray.Menu(*[
+        """Pins one of your languages, or adds and removes them.
+
+        Every language on offer gets its entries up front, and the ones you do
+        not speak are hidden. pystray rebuilds the native menu on every update
+        and drops hidden items, so adding a language makes it appear here
+        without rebuilding anything by hand.
+
+        Adding is split into submenus by first letter, because a hundred
+        languages in one Windows menu would run off the screen.
+        """
+        offered = language_names.catalog(self._languages)
+        pin = [
             pystray.MenuItem(
-                label,
+                "Auto-detect",
+                self._make_language_setter(""),
+                checked=self._make_language_check(""),
+                radio=True,
+            )
+        ]
+        for code in offered:
+            pin.append(pystray.MenuItem(
+                language_names.name(code),
                 self._make_language_setter(code),
                 checked=self._make_language_check(code),
                 radio=True,
+                visible=self._make_spoken_check(code),
+            ))
+        # Yours first, so removing one never means hunting through letters.
+        yours = [
+            pystray.MenuItem(
+                language_names.name(code),
+                self._make_language_toggle(code),
+                checked=self._make_spoken_check(code),
+                visible=self._make_spoken_check(code),
             )
-            for label, code in options
-        ])
+            for code in offered
+        ]
+        by_letter = [
+            pystray.MenuItem(label, pystray.Menu(*[
+                pystray.MenuItem(
+                    language_names.name(code),
+                    self._make_language_toggle(code),
+                    checked=self._make_spoken_check(code),
+                )
+                for code in codes
+            ]))
+            for label, codes in language_names.groups(offered)
+        ]
+        return pystray.Menu(
+            *pin,
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(
+                "Add or remove languages",
+                pystray.Menu(*yours, pystray.Menu.SEPARATOR, *by_letter),
+            ),
+        )
 
     def _make_language_setter(self, code):
         def setter(_icon=None, _item=None):
@@ -129,6 +168,15 @@ class Tray:
 
     def _make_language_check(self, code):
         return lambda _item: self._language == code
+
+    def _make_spoken_check(self, code):
+        return lambda _item: code in self._languages
+
+    def _make_language_toggle(self, code):
+        def toggle(_icon=None, _item=None):
+            if self._on_toggle_language:
+                self._on_toggle_language(code)
+        return toggle
 
     def _backend_menu(self):
         """Chooses between local CPU transcription and the OpenAI API."""
@@ -155,11 +203,6 @@ class Tray:
 
     def _make_backend_check(self, value):
         return lambda _item: self._backend == value
-
-    def _toggle_cleanup(self, _icon=None, _item=None):
-        self._cleanup = not self._cleanup
-        if self._on_cleanup:
-            self._on_cleanup(self._cleanup)
 
     # -- menu handlers -----------------------------------------------------
 
@@ -202,6 +245,18 @@ class Tray:
             self._icon.stop()
         except Exception:
             logger.debug("Tray stop raised", exc_info=True)
+
+    def set_language(self, code):
+        """Moves the pin mark, for when the app changes it rather than you."""
+        self._language = code or ""
+        self.refresh()
+
+    def refresh(self):
+        """Redraws the menu so checkmarks and the pin list are current."""
+        try:
+            self._icon.update_menu()
+        except Exception:
+            logger.debug("Tray menu refresh raised", exc_info=True)
 
     def set_status(self, status, busy=False):
         """Updates the tooltip, menu header and icon colour."""

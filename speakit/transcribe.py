@@ -30,6 +30,8 @@ import wave
 import numpy as np
 import webrtcvad
 
+from .languages import NAMES
+
 logger = logging.getLogger("speakit.transcribe")
 
 
@@ -43,19 +45,10 @@ class CloudUnreachable(RuntimeError):
 
 OPENAI_TRANSCRIBE_URL = "https://api.openai.com/v1/audio/transcriptions"
 
-# Enough of Whisper's language codes to name the ones people actually mix.
-# Anything missing falls back to the bare code, which still reads sensibly in
-# the generated prompt.
-_LANGUAGE_NAMES = {
-    "en": "English", "ru": "Russian", "de": "German", "kk": "Kazakh",
-    "fr": "French", "es": "Spanish", "it": "Italian", "pt": "Portuguese",
-    "nl": "Dutch", "pl": "Polish", "uk": "Ukrainian", "tr": "Turkish",
-    "ar": "Arabic", "zh": "Chinese", "ja": "Japanese", "ko": "Korean",
-    "hi": "Hindi", "cs": "Czech", "sv": "Swedish", "da": "Danish",
-    "fi": "Finnish", "no": "Norwegian", "he": "Hebrew", "el": "Greek",
-    "hu": "Hungarian", "ro": "Romanian", "id": "Indonesian", "vi": "Vietnamese",
-    "uz": "Uzbek", "az": "Azerbaijani", "ky": "Kyrgyz", "be": "Belarusian",
-}
+# Names for the generated prompt, shared with the tray so a language added
+# there is named properly here too. A code missing from the table is used as
+# is, which still reads sensibly in the prompt.
+_LANGUAGE_NAMES = NAMES
 
 
 # Short function words that get swallowed in connected speech, per language.

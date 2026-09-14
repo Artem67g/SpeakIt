@@ -26,7 +26,7 @@ import webrtcvad
 
 from . import config as config_module
 from . import output
-from .cleanup import Cleaner
+from . import languages
 from .engine import TranscriptionEngine
 from .hotkey import HotkeyListener
 from .mic import Microphone
@@ -110,7 +110,6 @@ class App:
         # produced per segment, or sent to the cloud, rather than being tied
         # to RealtimeSTT's one-language-per-utterance final pass.
         self.router = Router(self.engine, cfg)
-        self.cleaner = Cleaner(cfg)
         self._audio_chunks = []
         self._audio_lock = threading.Lock()
         self._sample_rate = int(cfg["audio"]["sample_rate"])
@@ -134,6 +133,10 @@ class App:
             on_hold_release=self._on_hold_release,
             on_cancel=self._on_cancel,
         )
+        # A config.json edited by hand before the tray could add languages can
+        # name a language in the menu and not in the list, or the other way.
+        if languages.reconcile(cfg):
+            config_module.save(cfg)
         self.tray = Tray(
             config_module.CONFIG_PATH,
             config_module.LOG_DIR,
@@ -142,11 +145,10 @@ class App:
             on_quit=self._on_tray_quit,
             on_language=self._on_tray_language,
             language=cfg["model"]["language"],
-            language_options=cfg["model"]["language_menu"],
+            languages=cfg["transcription"]["cloud"]["languages"],
+            on_toggle_language=self._on_tray_toggle_language,
             on_backend=self._on_tray_backend,
             backend=cfg["transcription"]["backend"],
-            on_cleanup=self._on_tray_cleanup,
-            cleanup=cfg["cleanup"]["enabled"],
         )
 
     # -- speech detection --------------------------------------------------
@@ -469,10 +471,6 @@ class App:
             )
             return
 
-        if text and self.cleaner.enabled:
-            self.post(self.overlay.set_status, "Cleaning up…")
-            text = self.cleaner.clean(text)
-
         logger.info("Final transcript (%s): %d chars", backend, len(text))
         self._deliver(text, backend)
 
@@ -554,27 +552,42 @@ class App:
         self.engine.set_language(code)
         self.cfg["model"]["language"] = code
         config_module.save(self.cfg)
-        label = {"": "auto-detect", "en": "English", "ru": "Russian"}.get(
-            code, code
-        )
+        label = languages.name(code) if code else "auto-detect"
         self.tray.set_status("Ready · language: {}".format(label))
         self.post(
             self.overlay.flash, "done", "", "Language: {}".format(label), 1.4
         )
+
+    def _on_tray_toggle_language(self, code):
+        """Adds or removes one of your languages, from the tray."""
+        was_pinned = self.cfg["model"]["language"]
+        result = languages.toggle(self.cfg, code)
+        if result == "kept":
+            self.post(self.overlay.flash, "error", "",
+                      "Keep at least one language", 2.0)
+            return
+        if was_pinned and not self.cfg["model"]["language"]:
+            # The pinned language is the one that was just removed.
+            self.engine.set_language("")
+            self.tray.set_language("")
+        config_module.save(self.cfg)
+        verb = "Added" if result == "added" else "Removed"
+        self.post(self.overlay.flash, "done", "",
+                  "{} {}".format(verb, languages.name(code)), 1.4)
+        self.tray.refresh()
 
     def _on_tray_backend(self, backend):
         """Switches between local and cloud transcription."""
         self.cfg["transcription"]["backend"] = backend
         config_module.save(self.cfg)
         if backend == "cloud" and not self.router.cloud.available():
-            key_var = self.cfg["transcription"]["cloud"]["api_key_env"]
-            logger.warning("Cloud selected but %s is not set", key_var)
-            self.tray.set_status("Cloud selected · no API key")
+            logger.warning("OpenAI selected but no API key was found")
+            self.tray.set_status("OpenAI selected · no API key")
             self.post(
                 self.overlay.flash,
                 "error",
                 "",
-                "Set {} to use the cloud".format(key_var),
+                "No OpenAI key yet. See the README",
                 3.0,
             )
             return
@@ -582,28 +595,6 @@ class App:
         self.tray.set_status("Ready · transcribing on {}".format(label))
         self.post(
             self.overlay.flash, "done", "", "Using {}".format(label), 1.4
-        )
-
-    def _on_tray_cleanup(self, enabled):
-        """Turns the LLM tidy-up pass on or off."""
-        self.cfg["cleanup"]["enabled"] = enabled
-        config_module.save(self.cfg)
-        if enabled and not self.router.cloud.available():
-            key_var = self.cfg["transcription"]["cloud"]["api_key_env"]
-            self.post(
-                self.overlay.flash,
-                "error",
-                "",
-                "Cleanup needs {}".format(key_var),
-                3.0,
-            )
-            return
-        self.post(
-            self.overlay.flash,
-            "done",
-            "",
-            "Cleanup {}".format("on" if enabled else "off"),
-            1.4,
         )
 
     def _on_tray_quit(self):

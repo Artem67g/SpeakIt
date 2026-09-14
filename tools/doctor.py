@@ -258,7 +258,8 @@ def check_api_key(cfg):
         say(OK, "OpenAI key", "found")
     elif wants_cloud:
         say(FAIL, "OpenAI key", "missing, but backend is set to cloud",
-            "Run INSTALL.bat -SetApiKey, or switch to local in the tray.")
+            "Run the install command with your key in it (see the README), "
+            "or switch to local in the tray.")
     else:
         say(OK, "OpenAI key", "not set (local backend, so not needed)")
 

@@ -34,11 +34,43 @@ irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1 | iex
 It downloads about 1 GB, installs into `%LOCALAPPDATA%\Programs\SpeakIt`,
 starts SpeakIt with Windows and launches it. Then hold Ctrl+Alt and talk.
 
-Run the same command again to update. Your `config.json` is kept.
+### With your OpenAI key (recommended)
+
+OpenAI is much more accurate than the model on your computer, and it is the
+only option that keeps up when you switch language in the middle of a
+sentence. Create a key at
+[platform.openai.com/api-keys](https://platform.openai.com/api-keys), put it
+between the quotes, and paste the whole line into PowerShell instead:
+
+```powershell
+$env:OPENAI_API_KEY = "PASTE-YOUR-KEY-HERE"; irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1 | iex
+```
+
+Filled in, it looks like this:
+
+<pre>$env:OPENAI_API_KEY = "<a href="docs/no-key-for-you.md">sk-proj-R4nd0m...x9Qz</a>"; irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1 | iex</pre>
+
+The installer checks the key with OpenAI, saves it to
+`%APPDATA%\SpeakIt\openai.key` where only your account can read it, and takes
+it back out of your PowerShell history. To change the key later, run the same
+line with the new one.
+
+It is your own key on your own OpenAI account. Nothing is proxied. Cost is
+about $0.006 per minute of audio, roughly $3.60 a month at 20 minutes of
+dictation a day. Check [current pricing](https://openai.com/api/pricing/).
+
+If you use the first command, the installer asks which one you want, and takes
+the key there instead.
+
+### Updating, and if it fails
+
+Run the same command again to update. Your settings are kept.
 
 If it fails, the window stays open with the reason, and the whole run is in
-`%TEMP%\SpeakIt-install.log`. Attach that file to an issue. If your antivirus
-blocks the command, use the ZIP and `INSTALL.bat` described below. If you find an ISSUE, then please report it so that I can fix it!
+`%TEMP%\SpeakIt-install.log`. If your antivirus blocks the command, use the ZIP
+and `INSTALL.bat` described below. If you hit a problem, please
+[open an issue](https://github.com/Maslitsa/SpeakIt/issues) and attach that
+log, so I can fix it.
 
 <details>
 <summary><b>Options, or a different install location</b></summary>
@@ -50,6 +82,7 @@ To pass arguments, load the script into a script block in PowerShell:
 ```powershell
 $s = [scriptblock]::Create((irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1))
 & $s -InstallDir 'D:\Apps\SpeakIt'
+& $s -Backend local
 & $s -NoAutostart
 ```
 
@@ -74,56 +107,22 @@ it somewhere permanent and double-click `INSTALL.bat`.
 
 </details>
 
-<details>
-<summary><b>Using the OpenAI API instead of the local model</b></summary>
-
-<br>
-
-Local transcription is the default. It is free, offline and private. The cloud
-backend is better on Russian and German, and it is the one that handles
-mid-sentence switching with no pause.
-
-```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1))) -SetApiKey
-```
-
-The prompt does not echo the key. It is written to
-`%APPDATA%\SpeakIt\openai.key` and locked to your account, outside the
-project folder so it cannot be committed by accident. Then pick *OpenAI* under
-**tray → Transcribed by**.
-
-It is your own key on your own OpenAI account. Nothing is proxied. Cost is
-about $0.006 per minute of audio, roughly $3.60 a month at 20 minutes of
-dictation a day. Check [current pricing](https://openai.com/api/pricing/).
-
-</details>
-
-<details>
-<summary><b>Uninstall</b></summary>
-
-<br>
-
-Double-click `UNINSTALL.bat` in `%LOCALAPPDATA%\Programs\SpeakIt`. It stops
-SpeakIt and removes the shortcuts, then prints where the folder and the key file
-are so you can delete them yourself.
-
-</details>
-
 ## Set your languages
 
-The shipped default is `["en", "ru", "de", "kk"]`, which is what I speak. It is
-what the cloud model is told to expect, so listing languages you do not speak
-invites the model to hear them. Open `config.json` from **tray → Edit
-settings** and change it:
+Click the microphone icon in the tray, then **Language > Add or remove
+languages**. Your languages are at the top: untick one to remove it. Below them
+is every other language Whisper knows, grouped by first letter. Open the group
+and tick yours.
 
-```json
-"languages": ["en", "de"]
-```
+The ones you tick show up in the Language menu, where you can pin one for a
+while if auto-detect keeps guessing wrong. The OpenAI model is told to expect
+them, so tick only the languages you actually speak. The default is English,
+Russian, German and Kazakh, because that is what I speak.
 
-If you stay on the local backend and switch language mid-sentence, also set
-`"per_segment_language": true`. It ships off because it costs punctuation
-accuracy and about 1.7x in speed, which is a bad trade for anyone dictating in
-one language. It only helps when you pause at the switch.
+If you stay on the local model and switch language mid-sentence, also set
+`"per_segment_language": true` in **Edit settings**. It ships off because it
+costs punctuation accuracy and about 1.7x in speed, which is a bad trade for
+anyone dictating in one language. It only helps when you pause at the switch.
 
 ## How you use it
 
@@ -132,7 +131,7 @@ one language. It only helps when you pause at the switch.
 | Hold Ctrl+Alt for longer than 0.7s | Records while held. Release to transcribe and insert. |
 | Tap Ctrl+Alt and release under 0.7s | Latches on for hands-free dictation. Tap again to finish, or stop talking and it ends after 2.5s of silence. |
 | Any other key while recording | Cancels. Nothing is inserted. |
-| Tray icon | Status, pin the language, switch backend, pause the hotkey, edit settings, quit. |
+| Tray icon | Status, your languages, OpenAI or local, pause the hotkey, edit settings, quit. |
 
 <div align="center">
 <img src="docs/img/overlay-listening.png" width="620" alt="Listening state with a red dot, live waveform and grey preview text"><br>
@@ -144,9 +143,9 @@ one language. It only helps when you pause at the switch.
 ## Why it exists
 
 Whisper picks one language per utterance. Anything you said in another language
-comes back translated, or it disappears. Also some of other repos have this
-annoying back window running. Here you cannot see it, it hides in the drop
-arrow.
+comes back translated, or it disappears. And a lot of the other tools keep a
+black console window open while they run. SpeakIt has none: it sits in the
+tray, behind the little arrow next to the clock.
 
 Here is Whisper `base` on a sentence that starts in English and ends in
 Russian:
@@ -170,9 +169,11 @@ OpenAI, by sending a list of languages rather than one.
 ## Try it before you trust it
 
 There is an 11 second clip in the repo that changes language three times with
-no pause at the switches, English to German to Russian to Kazakh:
+no pause at the switches, English to German to Russian to Kazakh. Run it from
+the SpeakIt folder:
 
 ```powershell
+cd "$env:LOCALAPPDATA\Programs\SpeakIt"
 .venv\Scripts\python.exe tools\try_demo.py --both
 ```
 
@@ -185,10 +186,11 @@ local   1.7s
         I already sent the invoice.
 ```
 
-It takes a wav of your own too, which is the harder test:
+It takes a 16-bit wav of your own too, which is the harder test. Give the full
+path, since you are in the SpeakIt folder:
 
 ```powershell
-.venv\Scripts\python.exe tools\try_demo.py my_recording.wav --both
+.venv\Scripts\python.exe tools\try_demo.py "$HOME\Desktop\my_recording.wav" --both
 ```
 
 The clip is synthesised speech, which is cleaner than a real voice.
@@ -215,13 +217,12 @@ The cloud is not the faster option. Its median is close to local and its worst
 case is much worse, because it depends on your connection. Switch to it for
 Russian, German and mid-sentence switching, not for speed.
 
-Full numbers in [docs/accuracy.md](docs/accuracy.md).
-
 ## Something wrong?
 
-Double-click `CHECKUP.bat`, or run:
+Double-click `CHECKUP.bat` in the SpeakIt folder, or run:
 
 ```powershell
+cd "$env:LOCALAPPDATA\Programs\SpeakIt"
 .venv\Scripts\python.exe tools\doctor.py
 ```
 
@@ -231,12 +232,25 @@ Anything it cannot fix gets a line telling you what to do.
 
 [docs/troubleshooting.md](docs/troubleshooting.md) goes deeper.
 
+## Uninstall
+
+Paste this into PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/uninstall.ps1 | iex
+```
+
+It removes every copy of SpeakIt on this PC, including old ones called
+VoiceType, with their shortcuts, your saved OpenAI key and the downloaded
+speech models. A folder that is a git clone is left where it is.
+
 ## Requirements
 
 * Windows 10 or 11. The hotkey, the overlay and the paste path are all Win32.
 * Nothing else. The installer brings its own Python.
 * A microphone. If you are not sure yours is good enough, run
-  `tools/check_mic.py` while speaking and it will tell you.
+  `.venv\Scripts\python.exe tools\check_mic.py` in the SpeakIt folder while
+  speaking and it will tell you.
 * No GPU needed. A CUDA GPU makes local transcription much faster if you have
   one.
 
@@ -255,17 +269,6 @@ app, closed source and cloud only.
 I have not benchmarked the other Windows dictation tools on GitHub, so I am not
 claiming to beat them. If one of them handles language switching properly I
 would rather know.
-
-## Documentation
-
-| | |
-| --- | --- |
-| [docs/configuration.md](docs/configuration.md) | Every setting in `config.json` and which ones matter |
-| [docs/accuracy.md](docs/accuracy.md) | Measurements: model sizes, language switching, latency, microphone level |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | Nothing heard, the hotkey going dead, elevated windows |
-| [docs/architecture.md](docs/architecture.md) | How the pieces fit together and the Windows traps behind them |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | How to help |
-| [CHANGELOG.md](CHANGELOG.md) | What changed |
 
 ## Credits
 

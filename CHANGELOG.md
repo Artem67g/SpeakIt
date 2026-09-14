@@ -37,6 +37,21 @@ found where it was, and the installer replaces the old shortcuts.
 
 ### Added
 
+- Any language Whisper knows can be added from the tray, under Language > Add
+  or remove languages, grouped by first letter. The tray's pin list and the
+  list the OpenAI model is told to expect are now one list, so they can no
+  longer disagree.
+- The OpenAI key can go straight into the install command:
+  `$env:OPENAI_API_KEY = "sk-..."; irm .../install.ps1 | iex`. The installer
+  checks it with OpenAI, saves it to the key file, and takes it back out of
+  the PowerShell history file. Running the same line again changes the key.
+- Without a key in the command, a fresh install asks whether to transcribe with
+  OpenAI or on this computer, and recommends OpenAI. Choosing it opens the page
+  where keys are created and takes a pasted key, checked the same way.
+  `-Backend openai` or `-Backend local` answers in advance. Updates never ask.
+- `uninstall.ps1`, one command that removes every copy of SpeakIt and
+  VoiceType, their shortcuts, the saved key and the downloaded speech models.
+  A git clone is never deleted.
 - GPU detection. `model.device` and `model.compute_type` now default to
   `"auto"`, which picks cuda/float16 when an NVIDIA card is actually usable and
   cpu/int8 otherwise. The old hardcoded cpu silently wasted a GPU on the
@@ -72,8 +87,17 @@ found where it was, and the installer replaces the old shortcuts.
   back to a local model that answers in under two seconds is a bad trade.
 - Documented where the wait after you stop talking actually goes, including
   the finding that the cloud backend is not the faster option. Its median is
-  comparable to local and its tail is much worse. See
-  [docs/accuracy.md](docs/accuracy.md#latency-where-the-wait-actually-goes).
+  comparable to local and its tail is much worse.
+
+### Removed
+
+- The "Clean up with AI" option. It never looked in the key file the
+  installer writes, so for anyone who installed that way it did nothing. A
+  `cleanup` section left in an old `config.json` is ignored.
+- `install.ps1 -Uninstall`, which only removed the shortcuts. `uninstall.ps1`
+  replaces it.
+- `docs/accuracy.md`, `docs/architecture.md` and `docs/configuration.md`. The
+  comments in `speakit/config.py` still explain every setting.
 
 ## [1.0.0] - 2026-09-08
 
