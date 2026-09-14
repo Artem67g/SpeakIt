@@ -26,6 +26,11 @@ found where it was, and the installer replaces the old shortcuts.
   `exit`, which inside `irm | iex` ends the PowerShell session and takes the
   error message with it. Failures now stay on screen and are logged to
   `%TEMP%\SpeakIt-install.log`.
+- Windows Defender blocked the install command itself. It started a second
+  `powershell.exe` with `-ExecutionPolicy Bypass` and a download on its command
+  line, which Defender's machine-learning model reports as
+  Trojan:Win32/Commando.A!ml. The command is now plain `irm ... | iex`, which
+  runs in the PowerShell that is already open.
 - The installer now checks path length, free space and the Visual C++ runtime
   up front, downloads the speech models and loads one before finishing, and
   confirms the app actually started. CI runs it on a clean Windows runner.

@@ -3,9 +3,14 @@
     Installs SpeakIt, updates it, or removes it.
 
 .DESCRIPTION
-    One command, from PowerShell, cmd or the Run dialog:
+    One command, pasted into PowerShell:
 
-        powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1 | iex"
+        irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1 | iex
+
+    It runs inside the PowerShell that is already open. Do not wrap it in
+    powershell -ExecutionPolicy Bypass -c "...": a second powershell.exe with
+    a download on its command line is what Windows Defender reports as
+    Trojan:Win32/Commando.A!ml, and it refuses to start it.
 
     You do not need Python. The script downloads uv, a single-file Python
     manager, and uv downloads the exact Python SpeakIt is tested on into the
@@ -575,8 +580,8 @@ function Invoke-Install {
   Something wrong?   double-click CHECKUP.bat in the folder above
   Remove it          double-click UNINSTALL.bat in the same folder
 
-  To use OpenAI instead of the local model, add a key with:
-  powershell -ExecutionPolicy Bypass -c "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1))) -SetApiKey"
+  To use OpenAI instead of the local model, add a key in PowerShell with:
+  & ([scriptblock]::Create((irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1))) -SetApiKey
 "@
 }
 

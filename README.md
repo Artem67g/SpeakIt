@@ -25,10 +25,10 @@ Windows. Built on [RealtimeSTT](https://github.com/KoljaB/RealtimeSTT). MIT.
 
 ## Install
 
-Paste this into PowerShell or Command Prompt:
+Paste this into PowerShell:
 
-```
-powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1 | iex"
+```powershell
+irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1 | iex
 ```
 
 You do not need Python. The installer puts its own Python 3.12 inside the
@@ -41,7 +41,8 @@ starts SpeakIt with Windows and launches it. Then hold Ctrl+Alt and talk.
 Run the same command again to update. Your `config.json` is kept.
 
 If it fails, the window stays open with the reason, and the whole run is in
-`%TEMP%\SpeakIt-install.log`. Attach that file to an issue.
+`%TEMP%\SpeakIt-install.log`. Attach that file to an issue. If your antivirus
+blocks the command, use the ZIP and `INSTALL.bat` described below.
 
 Needs 64-bit Windows 10 or 11 and about 3 GB of free space.
 
@@ -88,8 +89,8 @@ Local transcription is the default. It is free, offline and private. The cloud
 backend is better on Russian and German, and it is the one that handles
 mid-sentence switching with no pause.
 
-```
-powershell -ExecutionPolicy Bypass -c "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1))) -SetApiKey"
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1))) -SetApiKey
 ```
 
 The prompt does not echo the key. It is written to
