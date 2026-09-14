@@ -5,6 +5,38 @@ rather than logged lands in `logs\stdout.log`.
 
 ---
 
+## It works worse on another PC
+
+On the PC where it is worse, dictate a few sentences, then click the tray icon
+and **Save a problem report**. A ZIP appears on the Desktop. It holds the logs,
+the settings with the key removed, details of the PC and its microphone, and
+the last 5 recordings with what they were transcribed as. Send it to whoever
+is helping.
+
+`report.txt` in the ZIP answers the usual questions:
+
+- **Is it really using OpenAI?** Each dictation says `OpenAI` or `local`, and
+  a fallback gives its reason in brackets: `no API key`, `offline` or
+  `cloud error`.
+- **Is the audio good?** `captured` well short of `held` means part of the
+  recording was lost, usually to a busy CPU. `average` below about -45 dB is a
+  very quiet microphone. `clipped` above 1% is distorted. Another app holding
+  the microphone, like a call in WhatsApp or Teams, can also change what
+  SpeakIt hears.
+
+To tell a microphone problem from a setup problem, run their recording through
+SpeakIt on your own PC:
+
+```powershell
+cd "$env:LOCALAPPDATA\Programs\SpeakIt"
+.venv\Scripts\python.exe tools\try_demo.py "$HOME\Downloads\recordings\1.wav" --both
+```
+
+If it comes out badly on your PC too, the audio is the problem. If it comes
+out fine, the difference is in their setup.
+
+---
+
 ## It records, but always says "Nothing heard"
 
 The recording was captured and then thrown away by the silence guard. Run:
@@ -37,36 +69,6 @@ away, while silence scored 4.
 `recording.vad_aggressiveness` defaults to `1` for this reason. If you still
 get false rejections, lower `recording.min_speech_run` (12 = 240 ms of
 continuous speech). Raise it instead if room noise is getting through.
-
----
-
-## The live preview says something different from the final text
-
-This is expected, and the preview is now drawn in grey to make that obvious.
-
-They are two different models. The preview comes from `model.realtime` (`tiny`
-by default) running locally so it can keep up with you in real time. The final
-transcript comes from `model.final`, or on the cloud backend from OpenAI,
-which is a different system entirely. A tiny model asked to guess halfway
-through a sentence will regularly disagree with a good model that has heard all
-of it.
-
-A real example from this machine, saying a German street name:
-
-<img src="img/preview-dimmed.png" width="560" alt="Grey provisional preview text reading 'Tyurkenshtrasse tri'">
-
-<img src="img/preview-final.png" width="560" alt="White final text reading 'Türkenstraße 3.'">
-
-**Grey text is a guess. White text is the answer.** Only the white text is ever
-pasted.
-
-To make the preview closer to the final text, raise `model.realtime` from
-`tiny` to `base`. It costs more CPU while you speak. To stop showing it at
-all and keep just the waveform:
-
-```json
-{ "overlay": { "show_partial_text": false } }
-```
 
 ---
 

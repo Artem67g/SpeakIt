@@ -52,6 +52,13 @@ found where it was, and the installer replaces the old shortcuts.
 - `uninstall.ps1`, one command that removes every copy of SpeakIt and
   VoiceType, their shortcuts, the saved key and the downloaded speech models.
   A git clone is never deleted.
+- Tray > Save a problem report. It saves a ZIP to the Desktop with the logs,
+  the settings without the key, the PC and microphone, and the last 5
+  recordings with their transcripts, so a problem on someone else's PC can be
+  looked at on yours. Recordings are kept in memory only until then.
+- One log line per dictation: seconds held and captured, loudness, clipping,
+  which backend was used and why, and how long it took. Captured audio well
+  short of the time held is logged as dropped audio.
 - GPU detection. `model.device` and `model.compute_type` now default to
   `"auto"`, which picks cuda/float16 when an NVIDIA card is actually usable and
   cpu/int8 otherwise. The old hardcoded cpu silently wasted a GPU on the
@@ -91,6 +98,11 @@ found where it was, and the installer replaces the old shortcuts.
 
 ### Removed
 
+- The grey live text while you speak. It came from a small model that was
+  never close to the final transcript, and loading and running it cost CPU
+  that a weak laptop needs for recording. The pill now shows the waveform
+  until the real text arrives. `model.realtime`, `model.beam_size_realtime` and
+  `overlay.show_partial_text` are gone from the settings.
 - The "Clean up with AI" option. It never looked in the key file the
   installer writes, so for anyone who installed that way it did nothing. A
   `cleanup` section left in an old `config.json` is ignored.

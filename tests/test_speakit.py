@@ -222,7 +222,7 @@ class ConfigMerge(unittest.TestCase):
         )
         self.assertEqual(merged["model"]["final"], "small")
         self.assertEqual(
-            merged["model"]["realtime"], config_module.DEFAULTS["model"]["realtime"]
+            merged["model"]["beam_size"], config_module.DEFAULTS["model"]["beam_size"]
         )
 
     def test_merge_does_not_mutate_the_defaults(self):
@@ -427,6 +427,72 @@ class LanguageGroups(unittest.TestCase):
         self.assertIn("tl", languages.NAMES)
         self.assertNotIn("yue", languages.NAMES)
         self.assertTrue(all(len(code) == 2 for code in languages.NAMES))
+
+
+from speakit import diagnostics  # noqa: E402
+
+
+class ProblemReport(unittest.TestCase):
+    """The ZIP someone sends when SpeakIt works worse on their PC."""
+
+    # Built at runtime so the repository's secret scan has nothing to find.
+    FAKE_KEY = "sk-proj-" + "a1" * 20
+
+    def test_stats_for_a_tone(self):
+        stats = diagnostics.audio_stats(tone(1.0, amplitude=0.5), RATE)
+        self.assertAlmostEqual(stats["seconds"], 1.0, places=2)
+        self.assertAlmostEqual(stats["peak_db"], -6.0, delta=0.2)
+        self.assertAlmostEqual(stats["rms_db"], -9.0, delta=0.2)
+        self.assertEqual(stats["clipped_pct"], 0.0)
+
+    def test_stats_for_silence_and_clipping(self):
+        self.assertEqual(diagnostics.audio_stats(silence(0.5), RATE)["peak_db"],
+                         -120.0)
+        loud = np.full(RATE, 32767, dtype=np.int16).tobytes()
+        self.assertEqual(diagnostics.audio_stats(loud, RATE)["clipped_pct"],
+                         100.0)
+        self.assertEqual(diagnostics.audio_stats(b"", RATE)["seconds"], 0.0)
+
+    def test_redact_removes_keys_only(self):
+        text = "key {} and sk-short stay".format(self.FAKE_KEY)
+        self.assertEqual(diagnostics.redact(text),
+                         "key sk-...removed and sk-short stay")
+
+    def test_keeps_only_the_newest(self):
+        recent = diagnostics.Recent(keep=5)
+        for index in range(8):
+            recent.add(index)
+        self.assertEqual(recent.items(), [3, 4, 5, 6, 7])
+
+    def test_report_contents_and_no_key(self):
+        import copy
+        import zipfile
+
+        cfg = copy.deepcopy(config_module.DEFAULTS)
+        cfg["transcription"]["cloud"]["api_key"] = self.FAKE_KEY
+        entry = {
+            "time": "12:00:00", "pcm": tone(1.0), "rate": RATE, "held": 1.1,
+            "stats": diagnostics.audio_stats(tone(1.0), RATE),
+            "speech_run": 40, "language": "", "backend": "local",
+            "fallback": "offline", "took": 1.5, "text": "Привет, world",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            logs = Path(tmp) / "logs"
+            logs.mkdir()
+            (logs / "speakit.log").write_text(
+                "sent with " + self.FAKE_KEY, encoding="utf-8")
+            path = diagnostics.save_report(cfg, [entry, entry], logs,
+                                           out_dir=tmp, check_network=False)
+            with zipfile.ZipFile(path) as archive:
+                names = set(archive.namelist())
+                contents = b"".join(archive.read(name) for name in names)
+                report = archive.read("report.txt").decode("utf-8")
+        self.assertEqual(names, {"report.txt", "config.json",
+                                 "logs/speakit.log", "recordings/1.wav",
+                                 "recordings/2.wav"})
+        self.assertNotIn(self.FAKE_KEY.encode(), contents)
+        self.assertIn("local (offline)", report)
+        self.assertIn("Привет, world", report)
 
 
 if __name__ == "__main__":

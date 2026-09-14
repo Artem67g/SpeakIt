@@ -94,7 +94,6 @@ def run_local(cfg, pcm):
 
     engine = TranscriptionEngine(
         cfg,
-        on_partial=lambda text: None,
         on_ready=lambda: None,
         on_error=lambda exc: None,
         on_auto_stop=lambda: None,

@@ -12,7 +12,7 @@ a microphone in the tray.
 
 Windows. Built on [RealtimeSTT](https://github.com/KoljaB/RealtimeSTT). MIT.
 
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4?logo=windows&logoColor=white)](#requirements)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4?logo=windows&logoColor=white)](#install)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Built on RealtimeSTT](https://img.shields.io/badge/built%20on-RealtimeSTT-8A2BE2)](https://github.com/KoljaB/RealtimeSTT)
 [![Stars](https://img.shields.io/github/stars/Maslitsa/SpeakIt?style=social)](https://github.com/Maslitsa/SpeakIt/stargazers)
@@ -107,23 +107,6 @@ it somewhere permanent and double-click `INSTALL.bat`.
 
 </details>
 
-## Set your languages
-
-Click the microphone icon in the tray, then **Language > Add or remove
-languages**. Your languages are at the top: untick one to remove it. Below them
-is every other language Whisper knows, grouped by first letter. Open the group
-and tick yours.
-
-The ones you tick show up in the Language menu, where you can pin one for a
-while if auto-detect keeps guessing wrong. The OpenAI model is told to expect
-them, so tick only the languages you actually speak. The default is English,
-Russian, German and Kazakh, because that is what I speak.
-
-If you stay on the local model and switch language mid-sentence, also set
-`"per_segment_language": true` in **Edit settings**. It ships off because it
-costs punctuation accuracy and about 1.7x in speed, which is a bad trade for
-anyone dictating in one language. It only helps when you pause at the switch.
-
 ## How you use it
 
 | Gesture | What happens |
@@ -131,11 +114,9 @@ anyone dictating in one language. It only helps when you pause at the switch.
 | Hold Ctrl+Alt for longer than 0.7s | Records while held. Release to transcribe and insert. |
 | Tap Ctrl+Alt and release under 0.7s | Latches on for hands-free dictation. Tap again to finish, or stop talking and it ends after 2.5s of silence. |
 | Any other key while recording | Cancels. Nothing is inserted. |
-| Tray icon | Status, your languages, OpenAI or local, pause the hotkey, edit settings, quit. |
+| Tray icon | Status, add or remove your languages, OpenAI or local, pause the hotkey, edit settings, save a problem report, quit. |
 
 <div align="center">
-<img src="docs/img/overlay-listening.png" width="620" alt="Listening state with a red dot, live waveform and grey preview text"><br>
-<em>Listening. Preview text is grey because it comes from a small fast model and is only a guess.</em><br><br>
 <img src="docs/img/overlay-done.png" width="620" alt="Done state with a green dot and the final transcript in white"><br>
 <em>Done. White text is the final transcript, already pasted and on the clipboard.</em>
 </div>
@@ -146,55 +127,6 @@ Whisper picks one language per utterance. Anything you said in another language
 comes back translated, or it disappears. And a lot of the other tools keep a
 black console window open while they run. SpeakIt has none: it sits in the
 tray, behind the little arrow next to the clock.
-
-Here is Whisper `base` on a sentence that starts in English and ends in
-Russian:
-
-```
-Spoken:  I already sent the invoice yesterday, but клиент до сих пор
-         не ответил на моё письмо.
-
-Got:     I've already sent me an voice yesterday, but today children
-         mind your piece more
-```
-
-Bigger models make this worse. On the same clip, `small` and `large-v3-turbo`
-both dropped the entire English half that `base` had kept, because more
-capacity means a stronger single-language prior.
-
-SpeakIt handles it two ways, switchable from the tray: locally, by splitting
-the recording at pauses and detecting the language of each piece; or through
-OpenAI, by sending a list of languages rather than one.
-
-## Try it before you trust it
-
-There is an 11 second clip in the repo that changes language three times with
-no pause at the switches, English to German to Russian to Kazakh. Run it from
-the SpeakIt folder:
-
-```powershell
-cd "$env:LOCALAPPDATA\Programs\SpeakIt"
-.venv\Scripts\python.exe tools\try_demo.py --both
-```
-
-```
-cloud   3.6s
-        I already sent the invoice. Aber ich warte noch auf eine Antwort.
-        Но клиент до сих пор не ответил. Сондықтан ертең қоңырау шаламын.
-
-local   1.7s
-        I already sent the invoice.
-```
-
-It takes a 16-bit wav of your own too, which is the harder test. Give the full
-path, since you are in the SpeakIt folder:
-
-```powershell
-.venv\Scripts\python.exe tools\try_demo.py "$HOME\Desktop\my_recording.wav" --both
-```
-
-The clip is synthesised speech, which is cleaner than a real voice.
-[demo/README.md](demo/README.md) says what that does and does not prove.
 
 ## Local or OpenAI
 
@@ -230,7 +162,11 @@ It checks the Python version, the dependencies, your settings, the microphone,
 the API key, whether SpeakIt is running and whether it starts with Windows.
 Anything it cannot fix gets a line telling you what to do.
 
-[docs/troubleshooting.md](docs/troubleshooting.md) goes deeper.
+If it works worse on someone else's PC, have them dictate a few sentences,
+then click the tray icon and **Save a problem report**, and send you the ZIP
+from their Desktop.
+[docs/troubleshooting.md](docs/troubleshooting.md#it-works-worse-on-another-pc)
+says how to read it.
 
 ## Uninstall
 
@@ -244,39 +180,12 @@ It removes every copy of SpeakIt on this PC, including old ones called
 VoiceType, with their shortcuts, your saved OpenAI key and the downloaded
 speech models. A folder that is a git clone is left where it is.
 
-## Requirements
-
-* Windows 10 or 11. The hotkey, the overlay and the paste path are all Win32.
-* Nothing else. The installer brings its own Python.
-* A microphone. If you are not sure yours is good enough, run
-  `.venv\Scripts\python.exe tools\check_mic.py` in the SpeakIt folder while
-  speaking and it will tell you.
-* No GPU needed. A CUDA GPU makes local transcription much faster if you have
-  one.
-
-## Related projects
-
-[FluidVoice](https://altic.dev/fluid) is the closest thing to this: open
-source, local-first, and it runs Nemotron and Parakeet as well as Whisper. It
-is macOS only for now, with Windows on a waitlist. If you are on a Mac, use it.
-
-[whisperX](https://github.com/m-bain/whisperX) transcribes audio files with
-word-level timestamps and diarization, and its alignment models are
-language-specific. Windows voice typing (Win+H) is good and handles one
-language at a time. [Wispr Flow](https://wisprflow.ai) is a polished commercial
-app, closed source and cloud only.
-
-I have not benchmarked the other Windows dictation tools on GitHub, so I am not
-claiming to beat them. If one of them handles language switching properly I
-would rather know.
-
 ## Credits
 
 SpeakIt is built on [RealtimeSTT](https://github.com/KoljaB/RealtimeSTT) by
 [Kolja Beigel](https://github.com/KoljaB). RealtimeSTT does the microphone
-pipeline, the voice activity detection that ends a hands-free recording, and
-the live preview transcript. Those are the parts that make dictation feel
-immediate, and none of them are mine. If SpeakIt is useful to you, star
+pipeline and the voice activity detection that ends a hands-free recording,
+and none of that is mine. If SpeakIt is useful to you, star
 RealtimeSTT too.
 
 Transcription is [faster-whisper](https://github.com/SYSTRAN/faster-whisper)

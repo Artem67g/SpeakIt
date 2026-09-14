@@ -78,8 +78,23 @@ class Microphone:
                 target=self._read_loop, name="mic-read", daemon=True
             )
             self._thread.start()
-            logger.info("Microphone opened at %d Hz", self._sample_rate)
+            logger.info("Microphone opened at %d Hz: %s",
+                        self._sample_rate, self._device_name())
             return True
+
+    def _device_name(self):
+        """Which microphone this is, for the log a problem report includes."""
+        try:
+            if self._device_index is None:
+                info = self._pa.get_default_input_device_info()
+            else:
+                info = self._pa.get_device_info_by_index(self._device_index)
+            # One line: Bluetooth drivers put line breaks in device names.
+            return "{} (native {:.0f} Hz)".format(
+                " ".join(str(info.get("name", "?")).split()),
+                float(info.get("defaultSampleRate", 0)))
+        except Exception:
+            return "unknown device"
 
     def stop(self):
         """Stops delivery and closes the stream."""

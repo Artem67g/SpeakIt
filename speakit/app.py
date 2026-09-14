@@ -16,6 +16,7 @@ import ctypes
 import logging
 import logging.handlers
 import queue
+import subprocess
 import sys
 import threading
 import time
@@ -25,6 +26,7 @@ import numpy as np
 import webrtcvad
 
 from . import config as config_module
+from . import diagnostics
 from . import output
 from . import languages
 from .engine import TranscriptionEngine
@@ -101,7 +103,6 @@ class App:
 
         self.engine = TranscriptionEngine(
             cfg,
-            on_partial=self._on_partial,
             on_ready=self._on_ready,
             on_error=self._on_error,
             on_auto_stop=self._on_auto_stop,
@@ -110,6 +111,9 @@ class App:
         # produced per segment, or sent to the cloud, rather than being tied
         # to RealtimeSTT's one-language-per-utterance final pass.
         self.router = Router(self.engine, cfg)
+        # The last few dictations, for a problem report. Memory only.
+        self.recent = diagnostics.Recent()
+        self._held_seconds = 0.0
         self._audio_chunks = []
         self._audio_lock = threading.Lock()
         self._sample_rate = int(cfg["audio"]["sample_rate"])
@@ -149,6 +153,7 @@ class App:
             on_toggle_language=self._on_tray_toggle_language,
             on_backend=self._on_tray_backend,
             backend=cfg["transcription"]["backend"],
+            on_report=self._on_tray_report,
         )
 
     # -- speech detection --------------------------------------------------
@@ -244,9 +249,6 @@ class App:
         )
         self._abort_recording()
 
-    def _on_partial(self, text):
-        self.post(self.overlay.set_text, text, True)
-
     def _on_auto_stop(self):
         """The recorder decided the utterance ended (latched mode)."""
         with self._transition_lock:
@@ -254,6 +256,7 @@ class App:
                 if self.state not in (RECORDING_HOLD, RECORDING_LATCHED):
                     return
             self._cancel_max_timer()
+            self._held_seconds = time.monotonic() - self._recording_started
             self.mic.stop()
             self._start_transcription()
 
@@ -359,6 +362,7 @@ class App:
 
     def _finish_recording(self):
         elapsed = time.monotonic() - self._recording_started
+        self._held_seconds = elapsed
         self._cancel_max_timer()
         self.mic.stop()
         too_short = elapsed < float(self.cfg["recording"]["min_seconds"])
@@ -459,20 +463,61 @@ class App:
             self.post(self.overlay.flash, "error", "", "Nothing heard", 1.4)
             return
 
+        raw = pcm
         pcm = self._normalise(pcm)
         language = self.cfg["model"]["language"]
+        started = time.monotonic()
         try:
             text, backend = self.router.transcribe(pcm, language)
         except Exception as exc:
             logger.exception("Transcription failed")
+            self._remember(raw, language, "failed", str(exc)[:80],
+                           time.monotonic() - started, "")
             self._reset_to_idle()
             self.post(
                 self.overlay.flash, "error", str(exc)[:120], "", 3.0
             )
             return
 
+        self._remember(raw, language, backend, self.router.last_fallback,
+                       time.monotonic() - started, text)
         logger.info("Final transcript (%s): %d chars", backend, len(text))
         self._deliver(text, backend)
+
+    def _remember(self, pcm, language, backend, fallback, took, text):
+        """Logs the numbers a problem report needs, and keeps the recording.
+
+        No transcript text goes to the log. It stays in memory with the
+        recording, and leaves only in a report someone chose to save.
+        """
+        held = self._held_seconds
+        stats = diagnostics.audio_stats(pcm, self._sample_rate)
+        logger.info(
+            "Dictation: held %.1fs, captured %.1fs, peak %.0f dB, average "
+            "%.0f dB, clipped %.1f%%, speech run %d, %s%s in %.1fs",
+            held, stats["seconds"], stats["peak_db"], stats["rms_db"],
+            stats["clipped_pct"], self._speech_run_max, backend,
+            " ({})".format(fallback) if fallback else "", took,
+        )
+        if held > 1.0 and stats["seconds"] < held * 0.9:
+            logger.warning(
+                "Audio dropped: captured %.1fs of %.1fs. A busy CPU or the "
+                "microphone driver lost part of the recording.",
+                stats["seconds"], held,
+            )
+        self.recent.add({
+            "time": time.strftime("%H:%M:%S"),
+            "pcm": pcm,
+            "rate": self._sample_rate,
+            "held": held,
+            "stats": stats,
+            "speech_run": self._speech_run_max,
+            "language": language,
+            "backend": backend,
+            "fallback": fallback,
+            "took": took,
+            "text": text,
+        })
 
     def _deliver(self, text, backend):
         self._reset_to_idle()
@@ -596,6 +641,33 @@ class App:
         self.post(
             self.overlay.flash, "done", "", "Using {}".format(label), 1.4
         )
+
+    def _on_tray_report(self):
+        """Saves a problem report to the Desktop, off the tray thread."""
+        threading.Thread(
+            target=self._save_report, name="report", daemon=True
+        ).start()
+
+    def _save_report(self):
+        self.post(self.overlay.flash, "transcribing", "",
+                  "Saving a problem report…", 10.0)
+        try:
+            path = diagnostics.save_report(
+                self.cfg, self.recent.items(), config_module.LOG_DIR
+            )
+        except Exception as exc:
+            logger.exception("Could not save a problem report")
+            self.post(self.overlay.flash, "error", "",
+                      "Report failed: {}".format(str(exc)[:60]), 3.0)
+            return
+        logger.info("Problem report saved to %s", path)
+        self.post(self.overlay.flash, "done", "",
+                  "Report saved to your Desktop", 2.5)
+        try:
+            subprocess.Popen('explorer /select,"{}"'.format(path))
+        except OSError:
+            logger.debug("Could not show the report in Explorer",
+                         exc_info=True)
 
     def _on_tray_quit(self):
         self.post(self.shutdown)

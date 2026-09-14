@@ -3,9 +3,11 @@
 The recorder is driven entirely by hand: use_microphone=False means it only
 ever sees audio we hand it, so it can never start listening on its own.
 
-RealtimeSTT is used for the microphone pipeline, the voice activity detection
-that ends a latched recording, and the live preview text. It does *not*
-produce the final transcript any more: the app keeps its own copy of the
+RealtimeSTT is used for the microphone pipeline and the voice activity
+detection that ends a latched recording. There is no live preview text: the
+small model that produced it was never close to the final transcript, and on a
+weak CPU it competed with the recording. It does *not* produce the final
+transcript either: the app keeps its own copy of the
 captured audio and decides how to transcribe it (locally per segment, or in
 the cloud). `transcribe_audio` exposes the already-loaded local model for that,
 so no second copy of the weights is needed.
@@ -29,14 +31,13 @@ _NO_AUTO_STOP = 3600.0
 
 
 class TranscriptionEngine:
-    """Owns the AudioToTextRecorder: capture, VAD and live preview."""
+    """Owns the AudioToTextRecorder: capture and VAD."""
 
-    def __init__(self, config, on_partial, on_ready, on_error, on_auto_stop):
+    def __init__(self, config, on_ready, on_error, on_auto_stop):
         self._config = config
         self._model_cfg = config["model"]
         self._rec_cfg = config["recording"]
 
-        self._on_partial = on_partial
         self._on_ready = on_ready
         self._on_error = on_error
         self._on_auto_stop = on_auto_stop
@@ -132,33 +133,25 @@ class TranscriptionEngine:
         """Builds the recorder. Returns True, or raises for the caller."""
         model = self._model_cfg
         logger.info(
-            "Loading models: final=%s realtime=%s on %s/%s",
-            model["final"],
-            model["realtime"],
-            device,
-            compute_type,
+            "Loading model %s on %s/%s", model["final"], device, compute_type
         )
         started = time.monotonic()
         self._recorder = AudioToTextRecorder(
             model=model["final"],
-            realtime_model_type=model["realtime"],
             language=model["language"] or "",
             device=device,
             compute_type=compute_type,
             download_root=model["download_root"],
             initial_prompt=model["initial_prompt"] or None,
             beam_size=int(model["beam_size"]),
-            beam_size_realtime=int(model["beam_size_realtime"]),
             # We supply the audio ourselves.
             use_microphone=False,
             # No console spinner: this process has no console.
             spinner=False,
             no_log_file=True,
             level=logging.WARNING,
-            enable_realtime_transcription=True,
-            on_realtime_transcription_stabilized=self._handle_partial,
-            realtime_processing_pause=0.2,
-            init_realtime_after_seconds=0.2,
+            # Off, so the small preview model is never loaded at all.
+            enable_realtime_transcription=False,
             # Manual start/stop must always be honoured immediately.
             min_length_of_recording=0.0,
             min_gap_between_recordings=0.0,
@@ -310,10 +303,6 @@ class TranscriptionEngine:
                 raise
 
     # -- callbacks ---------------------------------------------------------
-
-    def _handle_partial(self, text):
-        if text and self._active:
-            self._on_partial(text)
 
     def _handle_recording_stop(self):
         """Fires for both our stop() and the recorder's own silence timeout."""

@@ -52,6 +52,7 @@ class Tray:
         on_toggle_language=None,
         on_backend=None,
         backend="local",
+        on_report=None,
     ):
         self._config_path = config_path
         self._log_dir = log_dir
@@ -66,6 +67,7 @@ class Tray:
         self._on_toggle_language = on_toggle_language
         self._on_backend = on_backend
         self._backend = backend or "local"
+        self._on_report = on_report
 
         self._status = "Starting…"
         self._paused = False
@@ -97,6 +99,7 @@ class Tray:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Edit settings", self._open_config),
             pystray.MenuItem("Open logs", self._open_logs),
+            pystray.MenuItem("Save a problem report", self._report),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit SpeakIt", self._quit),
         )
@@ -219,6 +222,10 @@ class Tray:
 
     def _open_logs(self, _icon=None, _item=None):
         self._open(str(self._log_dir))
+
+    def _report(self, _icon=None, _item=None):
+        if self._on_report:
+            self._on_report()
 
     @staticmethod
     def _open(target):

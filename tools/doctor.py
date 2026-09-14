@@ -149,10 +149,7 @@ def download_models(cfg):
         say(FAIL, "Speech models", "faster-whisper will not import: {}".format(
             str(exc)[:40]), "Run the installer again.")
         return False
-    names = []
-    for key in ("realtime", "final"):
-        if cfg["model"][key] not in names:
-            names.append(cfg["model"][key])
+    names = [cfg["model"]["final"]]
     for name in names:
         print("       downloading {} ...".format(name), flush=True)
         try:
@@ -199,7 +196,6 @@ def check_engine(cfg):
 
     engine = TranscriptionEngine(
         cfg,
-        on_partial=lambda *args: None,
         on_ready=lambda *args: settled.set(),
         on_error=on_error,
         on_auto_stop=lambda *args: None,

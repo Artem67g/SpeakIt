@@ -8,7 +8,7 @@
 #
 #   uv pip compile requirements.txt -o requirements.lock --python-version 3.12 --python-platform x86_64-pc-windows-msvc
 
-# Microphone pipeline, voice activity detection and the live preview.
+# Microphone pipeline and voice activity detection.
 # 1.1.0 is the first release with the external-audio API (use_microphone=False
 # plus feed_audio) that SpeakIt drives by hand.
 #

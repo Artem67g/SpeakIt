@@ -140,12 +140,6 @@ class Overlay:
         self._display_level = 0.0
         self._history = deque([0.0] * self._bar_count, maxlen=self._bar_count)
         self._text = ""
-        # Whether _text came from the live preview rather than the finished
-        # transcript. The preview is a different, much smaller model, so it
-        # regularly disagrees with the final text. It is drawn dimmed so it
-        # never looks like the answer.
-        self._provisional = False
-        self._show_partial = bool(config.get("show_partial_text", True))
         self._status = ""
         self._phase = 0.0
         self._visible = False
@@ -359,8 +353,6 @@ class Overlay:
             body = self._fit_text(self._text, self._font, available)
             if self._state == "error":
                 color = self._colors["error"]
-            elif self._provisional:
-                color = self._colors["muted"]
             else:
                 color = self._colors["text"]
             self._canvas.create_text(
@@ -455,12 +447,8 @@ class Overlay:
     def set_level(self, level):
         self._level = max(0.0, min(1.0, float(level)))
 
-    def set_text(self, text, provisional=False):
-        """Sets the pill's text. Provisional text is the live preview."""
-        if provisional and not self._show_partial:
-            return
+    def set_text(self, text):
         self._text = text or ""
-        self._provisional = bool(provisional)
 
     def set_status(self, status):
         self._status = status or ""
@@ -470,7 +458,6 @@ class Overlay:
         self._cancel_jobs()
         self._state = state
         self._text = text or ""
-        self._provisional = False
         self._status = status
         self._level = 0.0
         self.show(state, status)

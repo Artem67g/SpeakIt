@@ -19,7 +19,6 @@ DEFAULTS = {
     "model": {
         # Multilingual models: handle English and Russian, auto-detected.
         "final": "base",
-        "realtime": "tiny",
         # "" means auto-detect per utterance. Set "en", "ru" or "de" to pin it.
         "language": "",
         # The pin list in the tray's Language menu. Rebuilt from
@@ -48,7 +47,6 @@ DEFAULTS = {
         # clean clips, which means the only place it can differ is the hard
         # audio where the beam search is actually earning its keep.
         "beam_size": 5,
-        "beam_size_realtime": 3,
         # Where faster-whisper caches the model weights. null = default HF cache.
         "download_root": None,
         # Whisper's equivalent of a vocabulary hint: put your own names and
@@ -264,14 +262,6 @@ DEFAULTS = {
         "corner_radius": 16,
         "opacity": 0.96,
         "hide_delay": 1.6,
-        # Show the live preview text while you speak. It comes from
-        # model.realtime (tiny by default), which is a far weaker model than
-        # whatever produces the final transcript. With the cloud backend
-        # they are different systems entirely, so the preview regularly says
-        # something quite different from what you end up with. It is drawn in
-        # the muted colour to make clear it is not the answer yet. Set false
-        # to show only the waveform.
-        "show_partial_text": True,
         "bars": 34,
         "font_family": "Segoe UI",
         "font_size": 11,
