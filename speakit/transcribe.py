@@ -30,7 +30,7 @@ import wave
 import numpy as np
 import webrtcvad
 
-logger = logging.getLogger("voicetype.transcribe")
+logger = logging.getLogger("speakit.transcribe")
 
 
 class CloudUnreachable(RuntimeError):
@@ -117,6 +117,10 @@ CONNECT_TIMEOUT = 4.0
 # than stalling on every subsequent recording. Short on purpose: a passing
 # wifi drop should cost one slow dictation, not a minute of degraded ones.
 OFFLINE_MEMO_SECONDS = 20.0
+
+# Where the key lived before the project was renamed from VoiceType. Only ever
+# read, as a fallback, so nobody has to move a file after updating.
+LEGACY_KEY_FILE = "%APPDATA%\\VoiceType\\openai.key"
 
 
 def pcm_to_float(pcm_bytes):
@@ -311,7 +315,7 @@ class CloudBackend:
     def api_key(self):
         """Finds the key: config, then environment, then the key file.
 
-        The key file matters more than it looks. VoiceType starts from a
+        The key file matters more than it looks. SpeakIt starts from a
         Startup shortcut, and a process only inherits environment variables
         that existed when it was created, so a freshly set OPENAI_API_KEY is
         invisible until the next sign-in. The file is read at request time, so
@@ -331,17 +335,21 @@ class CloudBackend:
         path = (self._cloud.get("api_key_file") or "").strip()
         if not path:
             return ""
-        try:
-            expanded = os.path.expandvars(os.path.expanduser(path))
-            # utf-8-sig: PowerShell's Set-Content writes a BOM, which
-            # would otherwise ride along into the Authorization header.
-            with open(expanded, "r", encoding="utf-8-sig") as handle:
-                for line in handle:
-                    line = line.strip()
-                    if line and not line.startswith("#"):
-                        return line
-        except OSError:
-            logger.debug("No readable key file at %s", path, exc_info=True)
+        # SpeakIt was called VoiceType and kept the key under that name.
+        # Looking there as well means the rename cost nobody their key.
+        for candidate in (path, LEGACY_KEY_FILE):
+            try:
+                expanded = os.path.expandvars(os.path.expanduser(candidate))
+                # utf-8-sig: PowerShell's Set-Content writes a BOM, which
+                # would otherwise ride along into the Authorization header.
+                with open(expanded, "r", encoding="utf-8-sig") as handle:
+                    for line in handle:
+                        line = line.strip()
+                        if line and not line.startswith("#"):
+                            return line
+            except OSError:
+                logger.debug("No readable key file at %s", candidate,
+                             exc_info=True)
         return ""
 
     def available(self):

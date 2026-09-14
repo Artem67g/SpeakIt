@@ -12,12 +12,12 @@ Never paste an API key, including inside a log excerpt.
 ## Development setup
 
 ```powershell
-git clone https://github.com/Maslitsa/VoiceType.git
-cd VoiceType
+git clone https://github.com/Maslitsa/SpeakIt.git
+cd SpeakIt
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -NoStart -NoAutostart
 ```
 
-`-NoStart -NoAutostart` builds the environment without registering VoiceType to
+`-NoStart -NoAutostart` builds the environment without registering SpeakIt to
 run at sign-in, which is usually what you want while working on it.
 
 Run it with a console so you can watch it:
@@ -32,13 +32,13 @@ Run it the way it ships, with no window:
 .venv\Scripts\pythonw.exe run.py
 ```
 
-Logs are in `logs\voicetype.log`.
+Logs are in `logs\speakit.log`.
 
 ## Before opening a pull request
 
 ```powershell
 .venv\Scripts\python.exe -m unittest discover -s tests
-.venv\Scripts\python.exe -m compileall -q voicetype run.py tools
+.venv\Scripts\python.exe -m compileall -q speakit run.py tools
 ```
 
 The tests are stdlib `unittest` plus numpy and run in about two seconds. They
@@ -48,14 +48,14 @@ capping. Anything involving Win32 or a live microphone is not covered, and
 "I ran it and dictated with it for a day" is a reasonable thing to write in a
 pull request.
 
-CI runs the same two commands on Python 3.11 and 3.12, plus a scan for
-committed API keys.
+CI runs the same two commands on Python 3.11 and 3.12, runs the installer on
+a clean Windows runner, and scans for committed API keys.
 
 ## Two house rules
 
 **Comments explain why, not what.** Several defaults here look arbitrary and
 are not. They came from a measurement, and the comment saying which one is the
-reason nobody undoes it later. `voicetype/config.py` is the clearest example.
+reason nobody undoes it later. `speakit/config.py` is the clearest example.
 
 **If you change a default that was chosen by measurement, include a
 measurement.** Otherwise the next person will change it back.

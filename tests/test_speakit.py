@@ -1,4 +1,4 @@
-"""Tests for the parts of VoiceType that need no microphone.
+"""Tests for the parts of SpeakIt that need no microphone.
 
 Most of this project is Win32 behaviour and live audio, which is awkward to
 test in CI. These cover the pure logic underneath: audio maths, the segment
@@ -22,8 +22,8 @@ sys.path.insert(0, str(ROOT))
 
 import numpy as np  # noqa: E402
 
-from voicetype import config as config_module          # noqa: E402
-from voicetype.transcribe import (                     # noqa: E402
+from speakit import config as config_module          # noqa: E402
+from speakit.transcribe import (                     # noqa: E402
     CloudBackend, _default_keywords, _default_prompt, _join_segments,
     _merge_spans, pcm_to_float, pcm_to_wav,
 )
@@ -243,16 +243,16 @@ class ConfigMerge(unittest.TestCase):
 
 class HardwareResolution(unittest.TestCase):
     def test_explicit_values_are_left_alone(self):
-        from voicetype.hardware import resolve_hardware
+        from speakit.hardware import resolve_hardware
         self.assertEqual(resolve_hardware("cpu", "int8"), ("cpu", "int8"))
 
     def test_auto_compute_type_follows_the_device(self):
-        from voicetype.hardware import resolve_hardware
+        from speakit.hardware import resolve_hardware
         self.assertEqual(resolve_hardware("cuda", "auto")[1], "float16")
         self.assertEqual(resolve_hardware("cpu", "auto")[1], "int8")
 
     def test_auto_device_resolves_to_something_usable(self):
-        from voicetype.hardware import resolve_hardware
+        from speakit.hardware import resolve_hardware
         device, compute = resolve_hardware("auto", "auto")
         self.assertIn(device, ("cpu", "cuda"))
         self.assertIn(compute, ("int8", "float16"))
@@ -264,7 +264,7 @@ class CappedLogStream(unittest.TestCase):
     def _stream_class(self):
         import importlib.util
         spec = importlib.util.spec_from_file_location(
-            "voicetype_run", ROOT / "run.py")
+            "speakit_run", ROOT / "run.py")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module._CappedStream
@@ -289,6 +289,47 @@ class CappedLogStream(unittest.TestCase):
             # print() checks the return value; lying about it breaks callers.
             self.assertEqual(stream.write("y" * 30), 30)
             stream.close()
+
+
+class KeyFile(unittest.TestCase):
+    """Renaming the project from VoiceType must not lose anyone's saved key."""
+
+    def _backend(self, appdata):
+        import copy
+        import os
+        from unittest import mock
+
+        cfg = copy.deepcopy(config_module.DEFAULTS)
+        variable = cfg["transcription"]["cloud"]["api_key_env"]
+        env = {k: v for k, v in os.environ.items() if k != variable}
+        env["APPDATA"] = appdata
+        return CloudBackend(cfg), mock.patch.dict(os.environ, env, clear=True)
+
+    def _write(self, folder, key):
+        folder.mkdir()
+        (folder / "openai.key").write_text(key + "\n", encoding="utf-8")
+
+    def test_reads_the_current_location(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._write(Path(tmp) / "SpeakIt", "test-key-new")
+            backend, env = self._backend(tmp)
+            with env:
+                self.assertEqual(backend.api_key, "test-key-new")
+
+    def test_falls_back_to_the_voicetype_location(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._write(Path(tmp) / "VoiceType", "test-key-old")
+            backend, env = self._backend(tmp)
+            with env:
+                self.assertEqual(backend.api_key, "test-key-old")
+
+    def test_current_location_wins_when_both_exist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._write(Path(tmp) / "SpeakIt", "test-key-new")
+            self._write(Path(tmp) / "VoiceType", "test-key-old")
+            backend, env = self._backend(tmp)
+            with env:
+                self.assertEqual(backend.api_key, "test-key-new")
 
 
 if __name__ == "__main__":

@@ -1,9 +1,34 @@
 # Changelog
 
-Notable changes to VoiceType. Format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Notable changes to SpeakIt, called VoiceType until September 2026. Format
+follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
+
+VoiceType is now SpeakIt. Old GitHub links still work, a saved API key is still
+found where it was, and the installer replaces the old shortcuts.
+
+### Fixed
+
+- A fresh install could not transcribe anything. RealtimeSTT 1.1.2 moved
+  faster-whisper and silero-vad into an optional extra that
+  `requirements.txt` never asked for. Depending on which was missing, the app
+  either had no speech model runtime, or started, looked healthy, and never
+  became ready to dictate.
+- Installing failed unless the Python on PATH was 3.11 or 3.12, and could
+  still fail with the right one. The installer no longer uses your Python at
+  all: it downloads a pinned, checksummed uv, which puts Python 3.12 inside the
+  install folder. Every package is pinned in `requirements.lock`.
+- Installing into any path over Windows' 260 character limit failed while
+  building `halo` from source, because PyPI only has a Python 2 wheel for it. A
+  Python 3 wheel now ships in `vendor/`, and nothing is built from source.
+- A failed one-command install closed its own window. The installer ended with
+  `exit`, which inside `irm | iex` ends the PowerShell session and takes the
+  error message with it. Failures now stay on screen and are logged to
+  `%TEMP%\SpeakIt-install.log`.
+- The installer now checks path length, free space and the Visual C++ runtime
+  up front, downloads the speech models and loads one before finishing, and
+  confirms the app actually started. CI runs it on a clean Windows runner.
 
 ### Added
 

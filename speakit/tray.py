@@ -12,7 +12,7 @@ import threading
 import pystray
 from PIL import Image, ImageDraw
 
-logger = logging.getLogger("voicetype.tray")
+logger = logging.getLogger("speakit.tray")
 
 _IDLE = (233, 236, 241)
 _BUSY = (255, 77, 79)
@@ -76,9 +76,9 @@ class Tray:
             "paused": _make_icon(_PAUSED),
         }
         self._icon = pystray.Icon(
-            "VoiceType",
+            "SpeakIt",
             self._icons["idle"],
-            "VoiceType",
+            "SpeakIt",
             menu=self._build_menu(),
         )
         self._thread = None
@@ -104,7 +104,7 @@ class Tray:
             pystray.MenuItem("Edit settings", self._open_config),
             pystray.MenuItem("Open logs", self._open_logs),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Quit VoiceType", self._quit),
+            pystray.MenuItem("Quit SpeakIt", self._quit),
         )
 
     def _language_menu(self):
@@ -207,7 +207,7 @@ class Tray:
         """Updates the tooltip, menu header and icon colour."""
         self._status = status
         try:
-            self._icon.title = "VoiceType · {}".format(status)
+            self._icon.title = "SpeakIt · {}".format(status)
             if self._paused:
                 self._icon.icon = self._icons["paused"]
             else:

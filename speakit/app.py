@@ -1,4 +1,4 @@
-"""VoiceType controller.
+"""SpeakIt controller.
 
 Threads in play:
 
@@ -35,18 +35,18 @@ from .transcribe import Router
 from .tray import Tray
 from .winjob import join_kill_on_close
 
-logger = logging.getLogger("voicetype")
+logger = logging.getLogger("speakit")
 
 IDLE = "idle"
 RECORDING_HOLD = "recording_hold"
 RECORDING_LATCHED = "recording_latched"
 TRANSCRIBING = "transcribing"
 
-MUTEX_NAME = "Global\\VoiceType.SingleInstance"
+MUTEX_NAME = "Global\\SpeakIt.SingleInstance"
 
 
 def _claim_single_instance():
-    """Returns False if another VoiceType is already running."""
+    """Returns False if another SpeakIt is already running."""
     kernel32 = ctypes.windll.kernel32
     handle = kernel32.CreateMutexW(None, False, MUTEX_NAME)
     if not handle:
@@ -62,7 +62,7 @@ def setup_logging(level_name):
     """Sends logs to a rotating file; there is no console to print to."""
     config_module.LOG_DIR.mkdir(parents=True, exist_ok=True)
     handler = logging.handlers.RotatingFileHandler(
-        config_module.LOG_DIR / "voicetype.log",
+        config_module.LOG_DIR / "speakit.log",
         maxBytes=1_000_000,
         backupCount=3,
         encoding="utf-8",
@@ -96,7 +96,7 @@ class App:
         self._quitting = False
 
         self.root = tk.Tk()
-        self.root.title("VoiceType")
+        self.root.title("SpeakIt")
         self.overlay = Overlay(self.root, cfg["overlay"])
 
         self.engine = TranscriptionEngine(
@@ -617,7 +617,7 @@ class App:
         self.tray.start()
         self.tray.set_status("Loading speech models…")
         self.root.after(16, self._pump)
-        logger.info("VoiceType running")
+        logger.info("SpeakIt running")
         self.root.mainloop()
 
     def shutdown(self):

@@ -1,7 +1,7 @@
 # Configuration
 
 Settings live in `config.json` in the project root. It is written on first run
-from the defaults in [`voicetype/config.py`](../voicetype/config.py), which
+from the defaults in [`speakit/config.py`](../speakit/config.py), which
 carries a comment explaining every value and why it is what it is. That file
 is the real reference.
 
@@ -75,14 +75,14 @@ and untracked is the safest default for a file that can hold a secret.
 | `transcription.cloud.model` | `"gpt-transcribe"` | The only model measured here that transcribes a sentence which switches language. See [accuracy](accuracy.md#which-cloud-model). |
 | `transcription.cloud.languages` | `["en","ru","de"]` | **Load-bearing.** The list is what buys mid-sentence switching. Keep every language you use in it. |
 | `transcription.cloud.keywords` | `[]` | Literal terms you expect it to hear: names, jargon, product names. |
-| `transcription.cloud.api_key_file` | `%APPDATA%\VoiceType\openai.key` | Read per request, so a new key takes effect immediately. |
+| `transcription.cloud.api_key_file` | `%APPDATA%\SpeakIt\openai.key` | Read per request, so a new key takes effect immediately. |
 | `transcription.cloud.api_key_env` | `OPENAI_API_KEY` | Environment variable fallback. |
 | `transcription.cloud.api_key` | `""` | Inline key. **Avoid**, see below. |
 | `transcription.cloud.timeout` | `30` | Seconds. |
 | `transcription.cloud.fallback_to_local` | `true` | Transcribe locally if the API fails, rather than losing the recording. |
 
 Key lookup order is `api_key`, then the environment variable, then the file.
-**Prefer the file.** VoiceType starts from a Startup shortcut and only inherits
+**Prefer the file.** SpeakIt starts from a Startup shortcut and only inherits
 environment variables that already existed when it launched, so a newly set
 variable stays invisible until your next sign-in. The file has no such problem,
 lives outside the project folder, and cannot be committed by accident.
@@ -90,7 +90,7 @@ lives outside the project folder, and cannot be committed by accident.
 > [!CAUTION]
 > Do not put a real key in `transcription.cloud.api_key`. `config.json` is
 > gitignored, but a file in the project folder is one `git add -f` or one cloud
-> sync away from leaking. Use `.\install.ps1 -SetApiKey`.
+> sync away from leaking. Use `INSTALL.bat -SetApiKey`.
 
 ### Cleanup
 

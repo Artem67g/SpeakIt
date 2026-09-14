@@ -29,12 +29,12 @@ jobs:
           python-version: ${{ matrix.python }}
 
       - name: Compile every source file
-        run: python -m compileall -q voicetype run.py tools
+        run: python -m compileall -q speakit run.py tools
 
       - name: Fail on syntax warnings
         # Escaped backslashes in Windows paths inside docstrings are an easy
         # mistake to make in this codebase, and they only warn.
-        run: python -W error::SyntaxWarning -m compileall -q -f voicetype run.py tools
+        run: python -W error::SyntaxWarning -m compileall -q -f speakit run.py tools
 
       - name: Install the dependencies the tests need
         # Not the whole requirements file: PyTorch is gigabytes and the tests
@@ -46,7 +46,7 @@ jobs:
 
       - name: Import the modules that need no audio hardware
         run: |
-          python -c "import sys; sys.path.insert(0, '.'); from voicetype import winjob; print('winjob installs:', winjob.join_kill_on_close())"
+          python -c "import sys; sys.path.insert(0, '.'); from speakit import winjob; print('winjob installs:', winjob.join_kill_on_close())"
 
       - name: Check the installer parses
         shell: pwsh
@@ -56,6 +56,22 @@ jobs:
             (Resolve-Path .\install.ps1), [ref]$null, [ref]$errors)
           if ($errors) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
           Write-Host "install.ps1 parses cleanly"
+
+  install:
+    name: Installer on a clean Windows
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Run install.ps1
+        # Windows PowerShell 5.1 on purpose, because that is what every Windows
+        # 10 and 11 machine has. The runner's own Python is never touched: the
+        # installer gets Python 3.12 through uv. That, plus the pinned lock
+        # file, is what this job exists to keep working. No -NoStart would
+        # need a microphone, which a runner does not have.
+        shell: cmd
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -NoStart -NoAutostart
 
   secrets:
     name: No committed secrets

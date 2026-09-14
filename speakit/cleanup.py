@@ -10,7 +10,7 @@ worse than none at all, because you cannot tell what it changed.
 
 import logging
 
-logger = logging.getLogger("voicetype.cleanup")
+logger = logging.getLogger("speakit.cleanup")
 
 OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions"
 

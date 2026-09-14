@@ -45,7 +45,7 @@ in another. Pinning makes that worse, not better:
 
 ## Switching language mid-sentence
 
-This is the problem VoiceType exists to solve.
+This is the problem SpeakIt exists to solve.
 
 ### Locally: `per_segment_language`
 
@@ -217,7 +217,7 @@ what it heard, and a two-second wait for the accurate version feels like
 nothing, because you are not staring at an empty box wondering whether it
 worked.
 
-VoiceType uses RealtimeSTT for exactly that, plus the capture pipeline and the
+SpeakIt uses RealtimeSTT for exactly that, plus the capture pipeline and the
 voice-activity detection that ends a hands-free recording. The live preview in
 the pill is this feature.
 

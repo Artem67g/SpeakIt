@@ -5,9 +5,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        [docs/troubleshooting.md](https://github.com/Maslitsa/VoiceType/blob/main/docs/troubleshooting.md)
-        covers the common ones: nothing heard, the hotkey going dead, and the
-        wrong Python version.
+        [docs/troubleshooting.md](https://github.com/Maslitsa/SpeakIt/blob/main/docs/troubleshooting.md)
+        covers the common ones: nothing heard, the hotkey going dead, and a
+        failed install.
+
+        If installing failed, attach `%TEMP%\SpeakIt-install.log`.
 
         **Never paste an API key**, including inside a log excerpt.
 

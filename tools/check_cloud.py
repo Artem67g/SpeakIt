@@ -18,8 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from voicetype import config as config_module          # noqa: E402
-from voicetype.transcribe import CloudBackend          # noqa: E402
+from speakit import config as config_module          # noqa: E402
+from speakit.transcribe import CloudBackend          # noqa: E402
 
 # (label, [(voice, text), ...], what it should say)
 CASES = [

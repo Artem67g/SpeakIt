@@ -1,15 +1,28 @@
-# VoiceType runtime dependencies.
+# SpeakIt runtime dependencies.
 #
-# Lower bounds, not exact pins: this is an application people install once,
-# and pinning would strand them on old wheels. The versions named here are the
-# ones it is developed and tested against.
+# Lower bounds, for anyone installing by hand with pip. The installer does not
+# read this file. It installs requirements.lock, which pins every package,
+# including the ones pulled in indirectly, to the versions SpeakIt was tested
+# with, so an install next month gets what worked today. After changing
+# anything here, regenerate it:
+#
+#   uv pip compile requirements.txt -o requirements.lock --python-version 3.12 --python-platform x86_64-pc-windows-msvc
 
 # Microphone pipeline, voice activity detection and the live preview.
 # 1.1.0 is the first release with the external-audio API (use_microphone=False
-# plus feed_audio) that VoiceType drives by hand.
-RealtimeSTT>=1.1.2
+# plus feed_audio) that SpeakIt drives by hand.
+#
+# [default] matters. RealtimeSTT 1.1.2 moved both faster-whisper and silero-vad
+# into that extra. Without it a fresh install either has no speech model
+# runtime at all, or starts, looks healthy, and never becomes ready because it
+# cannot build its voice activity detector.
+RealtimeSTT[default]>=1.1.2
 
-# Pulled in by RealtimeSTT, listed because VoiceType imports them directly and
+# The speech model runtime. Also part of that extra, and listed here because
+# the scripts in tools/ import it directly.
+faster-whisper>=1.2.1
+
+# Pulled in by RealtimeSTT, listed because SpeakIt imports them directly and
 # should not silently depend on another package's requirements.
 numpy>=1.26
 PyAudio>=0.2.14

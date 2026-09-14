@@ -1,4 +1,4 @@
-"""Configuration loading for VoiceType.
+"""Configuration loading for SpeakIt.
 
 Settings live in config.json next to the project root so they survive
 reinstalls of the environment.
@@ -9,7 +9,7 @@ import json
 import logging
 from pathlib import Path
 
-logger = logging.getLogger("voicetype.config")
+logger = logging.getLogger("speakit.config")
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT_DIR / "config.json"
@@ -101,7 +101,7 @@ DEFAULTS = {
             # fields outright ("not supported for this model").
             "model": "gpt-transcribe",
             # Key lookup order: api_key, then this environment variable, then
-            # api_key_file. Prefer the file: VoiceType starts from a Startup
+            # api_key_file. Prefer the file: SpeakIt starts from a Startup
             # shortcut and only inherits environment variables that already
             # existed when it launched, so a newly set variable is invisible
             # until you sign in again. The file is read per request.
@@ -111,7 +111,7 @@ DEFAULTS = {
             # away from leaking.
             "api_key_env": "OPENAI_API_KEY",
             "api_key": "",
-            "api_key_file": "%APPDATA%\\VoiceType\\openai.key",
+            "api_key_file": "%APPDATA%\\SpeakIt\\openai.key",
             # The languages you actually speak. This is not decoration: it is
             # the setting that buys mid-sentence switching. On a Russian
             # sentence ending in English, gpt-transcribe dropped the English

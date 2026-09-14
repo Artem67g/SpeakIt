@@ -1,10 +1,10 @@
 <div align="center">
 
-# VoiceType
+# SpeakIt
 
 **Dictation software makes you pick a language before you start talking.**
 
-VoiceType assumes you are going to switch, probably mid-sentence.
+SpeakIt assumes you are going to switch, probably mid-sentence.
 
 Hold Ctrl+Alt, talk, and the text lands in whatever window you were already
 typing in. No console window, nothing in the taskbar, nothing in Alt+Tab. Just
@@ -13,12 +13,11 @@ a microphone in the tray.
 Windows. Built on [RealtimeSTT](https://github.com/KoljaB/RealtimeSTT). MIT.
 
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4?logo=windows&logoColor=white)](#requirements)
-[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)](#requirements)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Built on RealtimeSTT](https://img.shields.io/badge/built%20on-RealtimeSTT-8A2BE2)](https://github.com/KoljaB/RealtimeSTT)
-[![Stars](https://img.shields.io/github/stars/Maslitsa/VoiceType?style=social)](https://github.com/Maslitsa/VoiceType/stargazers)
+[![Stars](https://img.shields.io/github/stars/Maslitsa/SpeakIt?style=social)](https://github.com/Maslitsa/SpeakIt/stargazers)
 
-<img src="docs/img/overlay-hero.png" width="720" alt="The VoiceType pill above the taskbar showing a live waveform and a sentence that starts in English and continues in Russian">
+<img src="docs/img/overlay-hero.png" width="720" alt="The SpeakIt pill above the taskbar showing a live waveform and a sentence that starts in English and continues in Russian">
 
 </div>
 
@@ -26,37 +25,37 @@ Windows. Built on [RealtimeSTT](https://github.com/KoljaB/RealtimeSTT). MIT.
 
 ## Install
 
-One command in PowerShell:
+Paste this into PowerShell or Command Prompt:
 
-```powershell
-irm https://raw.githubusercontent.com/Maslitsa/VoiceType/main/install.ps1 | iex
+```
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1 | iex"
 ```
 
-This downloads the project to `%LOCALAPPDATA%\Programs\VoiceType`, builds a
-virtual environment, installs the dependencies, registers VoiceType to start
-when you sign in, and launches it. The first run downloads a few hundred MB of
-PyTorch and Whisper weights.
+You do not need Python. The installer puts its own Python 3.12 inside the
+SpeakIt folder and never uses the one you have, so Python 3.13, the Microsoft
+Store Python, conda, or no Python at all make no difference.
 
-Then hold Ctrl+Alt and talk.
+It downloads about 1 GB, installs into `%LOCALAPPDATA%\Programs\SpeakIt`,
+starts SpeakIt with Windows and launches it. Then hold Ctrl+Alt and talk.
 
 Run the same command again to update. Your `config.json` is kept.
 
-Requires Windows 10 or 11 and Python 3.11 or 3.12. Python 3.13 does not work
-because RealtimeSTT declares `python_requires >=3.11,<3.13`. The installer
-checks the version before doing anything.
+If it fails, the window stays open with the reason, and the whole run is in
+`%TEMP%\SpeakIt-install.log`. Attach that file to an issue.
+
+Needs 64-bit Windows 10 or 11 and about 3 GB of free space.
 
 <details>
 <summary><b>Options, or a different install location</b></summary>
 
 <br>
 
-A piped script cannot take arguments directly, so build it into a script block:
+To pass arguments, load the script into a script block in PowerShell:
 
 ```powershell
-$s = [scriptblock]::Create((irm https://raw.githubusercontent.com/Maslitsa/VoiceType/main/install.ps1))
-& $s -InstallDir 'D:\Apps\VoiceType'
+$s = [scriptblock]::Create((irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1))
+& $s -InstallDir 'D:\Apps\SpeakIt'
 & $s -NoAutostart
-& $s -Python 'C:\Python312\python.exe'
 ```
 
 </details>
@@ -69,13 +68,13 @@ $s = [scriptblock]::Create((irm https://raw.githubusercontent.com/Maslitsa/Voice
 Read [install.ps1](install.ps1) first, or skip the pipe:
 
 ```powershell
-git clone https://github.com/Maslitsa/VoiceType.git
-cd VoiceType
+git clone https://github.com/Maslitsa/SpeakIt.git
+cd SpeakIt
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 If you would rather not use a terminal at all, download the
-[ZIP](https://github.com/Maslitsa/VoiceType/archive/refs/heads/main.zip), unzip
+[ZIP](https://github.com/Maslitsa/SpeakIt/archive/refs/heads/main.zip), unzip
 it somewhere permanent and double-click `INSTALL.bat`.
 
 </details>
@@ -89,12 +88,12 @@ Local transcription is the default. It is free, offline and private. The cloud
 backend is better on Russian and German, and it is the one that handles
 mid-sentence switching with no pause.
 
-```powershell
-.\install.ps1 -SetApiKey
+```
+powershell -ExecutionPolicy Bypass -c "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1))) -SetApiKey"
 ```
 
 The prompt does not echo the key. It is written to
-`%APPDATA%\VoiceType\openai.key` and locked to your account, outside the
+`%APPDATA%\SpeakIt\openai.key` and locked to your account, outside the
 project folder so it cannot be committed by accident. Then pick *OpenAI* under
 **tray → Transcribed by**.
 
@@ -109,13 +108,9 @@ dictation a day. Check [current pricing](https://openai.com/api/pricing/).
 
 <br>
 
-```powershell
-.\install.ps1 -Uninstall
-```
-
-Or double-click `UNINSTALL.bat`. This stops VoiceType and removes the
-shortcuts, then prints where the folder, the environment and the key file are
-so you can delete them yourself.
+Double-click `UNINSTALL.bat` in `%LOCALAPPDATA%\Programs\SpeakIt`. It stops
+SpeakIt and removes the shortcuts, then prints where the folder and the key file
+are so you can delete them yourself.
 
 </details>
 
@@ -173,7 +168,7 @@ Bigger models make this worse. On the same clip, `small` and `large-v3-turbo`
 both dropped the entire English half that `base` had kept, because more
 capacity means a stronger single-language prior.
 
-VoiceType handles it two ways, switchable from the tray: locally, by splitting
+SpeakIt handles it two ways, switchable from the tray: locally, by splitting
 the recording at pauses and detecting the language of each piece; or through
 OpenAI, by sending a list of languages rather than one.
 
@@ -236,7 +231,7 @@ Double-click `CHECKUP.bat`, or run:
 ```
 
 It checks the Python version, the dependencies, your settings, the microphone,
-the API key, whether VoiceType is running and whether it starts with Windows.
+the API key, whether SpeakIt is running and whether it starts with Windows.
 Anything it cannot fix gets a line telling you what to do.
 
 [docs/troubleshooting.md](docs/troubleshooting.md) goes deeper.
@@ -244,7 +239,7 @@ Anything it cannot fix gets a line telling you what to do.
 ## Requirements
 
 * Windows 10 or 11. The hotkey, the overlay and the paste path are all Win32.
-* Python 3.11 or 3.12.
+* Nothing else. The installer brings its own Python.
 * A microphone. If you are not sure yours is good enough, run
   `tools/check_mic.py` while speaking and it will tell you.
 * No GPU needed. A CUDA GPU makes local transcription much faster if you have
@@ -279,11 +274,11 @@ would rather know.
 
 ## Credits
 
-VoiceType is built on [RealtimeSTT](https://github.com/KoljaB/RealtimeSTT) by
+SpeakIt is built on [RealtimeSTT](https://github.com/KoljaB/RealtimeSTT) by
 [Kolja Beigel](https://github.com/KoljaB). RealtimeSTT does the microphone
 pipeline, the voice activity detection that ends a hands-free recording, and
 the live preview transcript. Those are the parts that make dictation feel
-immediate, and none of them are mine. If VoiceType is useful to you, star
+immediate, and none of them are mine. If SpeakIt is useful to you, star
 RealtimeSTT too.
 
 Transcription is [faster-whisper](https://github.com/SYSTRAN/faster-whisper)

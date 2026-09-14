@@ -3,17 +3,24 @@
 ## Layout
 
 ```
-VoiceType\
+SpeakIt\
 ├─ run.py                  entry point; launch with pythonw.exe
-├─ install.ps1             environment, autostart, key setup, uninstall
-├─ requirements.txt
+├─ install.ps1             install, update, key setup, uninstall
+├─ requirements.txt        dependencies as lower bounds
+├─ requirements.lock       the exact versions the installer uses
+├─ vendor\                 halo wheel; PyPI only has a Python 2 one
 ├─ config.json             created on first run, gitignored
-├─ logs\                   voicetype.log (rotating), stdout.log (capped)
+├─ logs\                   speakit.log (rotating), stdout.log (capped)
+├─ .venv\ .uv\             made by the installer, gitignored
 ├─ tools\
+│  ├─ doctor.py            the check-up; the installer runs it with --install
 │  ├─ check_mic.py         is your microphone good enough?
-│  └─ check_cloud.py       what does OpenAI return for known sentences?
+│  ├─ check_cloud.py       what does OpenAI return for known sentences?
+│  └─ try_demo.py          the demo clip, or your own recording
+├─ demo\                   four_languages.wav
+├─ tests\
 ├─ docs\
-└─ voicetype\
+└─ speakit\
    ├─ app.py               controller and state machine
    ├─ engine.py            RealtimeSTT wrapper: capture, VAD, live preview
    ├─ transcribe.py        local/cloud backends, per-segment language
@@ -117,7 +124,7 @@ children and they need it too.
 
 This is the one that did real damage. RealtimeSTT transcribes in a spawned
 child process. `TerminateProcess` runs no `atexit` handlers, no `finally`
-blocks and no signal handlers. So when VoiceType was force-killed, the child
+blocks and no signal handlers. So when SpeakIt was force-killed, the child
 survived, its parent pipe broke, and RealtimeSTT's poll loop logged a
 `BrokenPipeError` traceback and immediately retried. Forever.
 
@@ -125,7 +132,7 @@ Twelve of those were found running on the development machine, the oldest three
 days old, having written an **8.7 GB** `stdout.log` between them.
 
 No Python can fix this, because no Python runs. So the cleanup belongs to the
-operating system: [`winjob.py`](../voicetype/winjob.py) puts the process in a
+operating system: [`winjob.py`](../speakit/winjob.py) puts the process in a
 job object marked `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. Children inherit the
 job, and when the last handle to it closes, which Windows does for us when the
 process dies by any means, everything left in the job is terminated.
@@ -141,7 +148,7 @@ sees raw audio.
 
 ### One instance only
 
-A named mutex (`Global\VoiceType.SingleInstance`), so the Startup shortcut
+A named mutex (`Global\SpeakIt.SingleInstance`), so the Startup shortcut
 cannot produce duplicates.
 
 ---
@@ -156,7 +163,7 @@ With the default local backend, no audio and no text ever leaves the machine.
 With the cloud backend, the recorded audio is uploaded to OpenAI when you
 dictate, and only then.
 
-The API key is stored in `%APPDATA%\VoiceType\openai.key`, outside the project
+The API key is stored in `%APPDATA%\SpeakIt\openai.key`, outside the project
 folder, with inheritance broken so only your account can read it. It is
 deliberately not in `config.json`: a file inside the project is one `git add -f`
 or one cloud-sync away from leaking.
