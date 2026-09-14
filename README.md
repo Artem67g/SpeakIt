@@ -38,7 +38,7 @@ Run the same command again to update. Your `config.json` is kept.
 
 If it fails, the window stays open with the reason, and the whole run is in
 `%TEMP%\SpeakIt-install.log`. Attach that file to an issue. If your antivirus
-blocks the command, use the ZIP and `INSTALL.bat` described below. If you find an ISSUE, then please file it so that I can fix it!
+blocks the command, use the ZIP and `INSTALL.bat` described below. If you find an ISSUE, then please report it so that I can fix it!
 
 <details>
 <summary><b>Options, or a different install location</b></summary>
