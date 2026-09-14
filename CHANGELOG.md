@@ -31,6 +31,11 @@ found where it was, and the installer replaces the old shortcuts.
   line, which Defender's machine-learning model reports as
   Trojan:Win32/Commando.A!ml. The command is now plain `irm ... | iex`, which
   runs in the PowerShell that is already open.
+- An update could end with "SpeakIt installed but did not start" while it was
+  in fact starting. The installer waited 20 seconds, and the first start after
+  an update, with every file new to Python and PyTorch read from a cold disk,
+  took 29 on a fast laptop. It now waits two minutes, and only reports a
+  failure if SpeakIt actually exited.
 - The installer now checks path length, free space and the Visual C++ runtime
   up front, downloads the speech models and loads one before finishing, and
   confirms the app actually started. CI runs it on a clean Windows runner.

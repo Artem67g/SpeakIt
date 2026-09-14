@@ -708,9 +708,14 @@ function Test-ShortcutPointsHere([string]$Path) {
 
 function Start-SpeakIt {
     $proc = Start-Process -FilePath $VenvPyW -ArgumentList ('"{0}"' -f $EntryFile) -WorkingDirectory $Root -PassThru
-    # The app claims its single-instance mutex as soon as it starts, before
-    # the model loads, so this answers "did it start" within a few seconds.
-    for ($i = 0; $i -lt 40; $i++) {
+    # The app claims its single-instance mutex once its imports are done,
+    # before the model loads. Right after an update that takes far longer
+    # than usual: every file is new, so Python compiles them all again, and
+    # PyTorch is read from a cold disk. A laptop that normally starts in a few
+    # seconds took 29 here, so a slow PC gets two minutes, and one that is
+    # still starting after that is not called a failure.
+    Write-Note 'the first start after installing can take a minute'
+    for ($i = 0; $i -lt 240; $i++) {
         $mutex = $null
         if ([Threading.Mutex]::TryOpenExisting($MutexName, [ref]$mutex)) {
             $mutex.Dispose()
@@ -719,6 +724,10 @@ function Start-SpeakIt {
         }
         if ($proc.HasExited) { break }
         Start-Sleep -Milliseconds 500
+    }
+    if (-not $proc.HasExited) {
+        Write-Warning "SpeakIt is still starting (PID $($proc.Id)). If the microphone icon is not in the tray within a minute, double-click CHECKUP.bat in $Root."
+        return
     }
     foreach ($name in @('speakit.log', 'stdout.log')) {
         $log = Join-Path $Root "logs\$name"
