@@ -84,6 +84,7 @@ $s = [scriptblock]::Create((irm https://raw.githubusercontent.com/Maslitsa/Speak
 & $s -InstallDir 'D:\Apps\SpeakIt'
 & $s -Backend local
 & $s -NoAutostart
+& $s -NoGame
 ```
 
 </details>
@@ -106,6 +107,18 @@ If you would rather not use a terminal at all, download the
 it somewhere permanent and double-click `INSTALL.bat`.
 
 </details>
+
+## Uninstall
+
+Paste this into PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/uninstall.ps1 | iex
+```
+
+It removes every copy of SpeakIt on this PC, including old ones called
+VoiceType, with their shortcuts, your saved OpenAI key and the downloaded
+speech models. A folder that is a git clone is left where it is.
 
 ## How you use it
 
@@ -167,18 +180,6 @@ then click the tray icon and **Save a problem report**, and send you the ZIP
 from their Desktop.
 [docs/troubleshooting.md](docs/troubleshooting.md#it-works-worse-on-another-pc)
 says how to read it.
-
-## Uninstall
-
-Paste this into PowerShell:
-
-```powershell
-irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/uninstall.ps1 | iex
-```
-
-It removes every copy of SpeakIt on this PC, including old ones called
-VoiceType, with their shortcuts, your saved OpenAI key and the downloaded
-speech models. A folder that is a git clone is left where it is.
 
 ## Credits
 

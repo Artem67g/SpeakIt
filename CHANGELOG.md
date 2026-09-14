@@ -42,6 +42,10 @@ found where it was, and the installer replaces the old shortcuts.
 
 ### Added
 
+- A window opens during the install with a progress bar, a rough time left,
+  and a dinosaur that jumps cactuses (Space) until SpeakIt is ready. It closes
+  itself when the install finishes. `-NoGame` skips it.
+- The install log records how long each step took.
 - Any language Whisper knows can be added from the tray, under Language > Add
   or remove languages, grouped by first letter. The tray's pin list and the
   list the OpenAI model is told to expect are now one list, so they can no
@@ -81,6 +85,14 @@ found where it was, and the installer replaces the old shortcuts.
 
 ### Changed
 
+- The installer loads the speech engine once instead of twice. It used to
+  start the engine as a check and then start SpeakIt, which loaded it again;
+  now it waits for SpeakIt's own engine to report ready. With `-NoStart` it
+  still runs the separate check.
+- Installer and uninstaller messages are always English. Errors from
+  PowerShell and Windows used to come out in the Windows display language,
+  mixed in with English ones.
+- Uninstall is right below Install in the README.
 - The `languages` list is no longer described as load-bearing.
   Rerunning that measurement, `gpt-transcribe` returns both halves of a
   switched sentence with no list at all, in both directions, and all four

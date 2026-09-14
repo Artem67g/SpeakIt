@@ -230,7 +230,7 @@ The window stays open with the reason in red, and the whole run is in
   prompt was declined. Install
   [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe) and run
   the install command again.
-- **"Access is denied" (Отказано в доступе) as soon as you press Enter.**
+- **"Access is denied" as soon as you press Enter.**
   Windows Defender blocks `powershell -ExecutionPolicy Bypass -c "irm ... | iex"`
   as Trojan:Win32/Commando.A!ml. That is a guess by its machine-learning
   model about the command line, not a finding in the script, and nothing is

@@ -9,7 +9,9 @@ Or just double-click CHECKUP.bat.
 
 The installer runs it with --install, which skips the checks that only make
 sense once the app is running. Instead it downloads the speech models and
-starts the real transcription engine, then waits for it to be ready. SpeakIt
+starts the real transcription engine, then waits for it to be ready. When the
+installer is about to start SpeakIt anyway, it adds --no-engine and watches
+the app's own engine start instead, so the model is not loaded twice. SpeakIt
 has no console, so an engine that cannot start at first launch fails where
 nobody can see it. The installer's window is the last place an error is still
 readable.
@@ -303,6 +305,7 @@ def check_logs():
 
 def main():
     install = "--install" in sys.argv[1:]
+    no_engine = "--no-engine" in sys.argv[1:]
     print()
     print("SpeakIt check-up")
     print("=" * 62)
@@ -314,7 +317,8 @@ def main():
         # Only worth starting the engine if everything it needs imported.
         if cfg is not None and not problems:
             download_models(cfg)
-            check_engine(cfg)
+            if not no_engine:
+                check_engine(cfg)
     else:
         check_microphone(cfg)
         check_api_key(cfg)

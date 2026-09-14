@@ -139,7 +139,7 @@ DEFAULTS = {
             # generated from the languages above, which is what you want.
             #
             # This is not cosmetic. A German phrase spoken in a Russian accent
-            # came back as "Эвэрэрджетс пречиечею вдойч", German
+            # came back as Cyrillic gibberish, the German sounds
             # transliterated into Cyrillic, on 6 attempts out of 6 with no
             # prompt. With the generated one it came back in Latin script on
             # 6 out of 6, and clean English, Russian and German were

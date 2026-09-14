@@ -29,6 +29,13 @@ $SelfPath = $PSCommandPath
 
 $ErrorActionPreference = 'Stop'
 
+# Messages from PowerShell and Windows come out in the Windows display
+# language. This script's own are English, so everything is.
+$SavedUICulture = [Threading.Thread]::CurrentThread.CurrentUICulture
+try {
+    [Threading.Thread]::CurrentThread.CurrentUICulture = [Globalization.CultureInfo]::GetCultureInfo('en-US')
+} catch {}
+
 $Names       = @('SpeakIt', 'VoiceType')
 $StartupDir  = [Environment]::GetFolderPath('Startup')
 $ProgramsDir = [Environment]::GetFolderPath('Programs')
@@ -214,6 +221,7 @@ try {
     Write-Host 'The uninstall stopped.' -ForegroundColor Red
     Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
 } finally {
+    try { [Threading.Thread]::CurrentThread.CurrentUICulture = $SavedUICulture } catch {}
     # The window may have been inside a folder that no longer exists.
     if (Test-Path -LiteralPath $savedLocation.Path) {
         Set-Location -LiteralPath $savedLocation.Path

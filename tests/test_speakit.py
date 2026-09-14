@@ -495,5 +495,54 @@ class ProblemReport(unittest.TestCase):
         self.assertIn("Привет, world", report)
 
 
+def _load_install_game():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "install_game", ROOT / "tools" / "install_game.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class InstallProgress(unittest.TestCase):
+    """The bar in the game window the installer opens."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.game = _load_install_game()
+
+    def state(self, started):
+        return {"state": "running", "label": "Installing packages",
+                "started": started, "expected": 100.0,
+                "finished_share": 0.2, "share": 0.5, "remaining_after": 60.0}
+
+    def test_nothing_yet(self):
+        self.assertEqual(self.game.progress(None, 0.0), (0.0, None))
+
+    def test_a_step_starts_where_the_last_one_ended(self):
+        fraction, left = self.game.progress(self.state(1000.0), 1000.0)
+        self.assertAlmostEqual(fraction, 0.2)
+        self.assertAlmostEqual(left, 160.0)
+
+    def test_a_slow_step_never_passes_its_end(self):
+        early, left_early = self.game.progress(self.state(0.0), 50.0)
+        late, left_late = self.game.progress(self.state(0.0), 100000.0)
+        self.assertGreater(early, 0.2)
+        self.assertGreater(late, early)
+        self.assertLessEqual(late, 0.7)
+        self.assertLess(left_late, left_early)
+        self.assertAlmostEqual(left_late, 60.0)
+
+    def test_done_is_full(self):
+        self.assertEqual(self.game.progress({"state": "done"}, 5.0), (1.0, 0.0))
+
+    def test_time_left_stays_vague(self):
+        self.assertEqual(self.game.time_left(None), "")
+        self.assertEqual(self.game.time_left(30), "almost done")
+        self.assertEqual(self.game.time_left(70), "about a minute left")
+        self.assertEqual(self.game.time_left(300), "about 5 minutes left")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

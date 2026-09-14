@@ -11,11 +11,12 @@ sentence that switches language mid-way gets the other half *translated*
 rather than transcribed. Splitting the audio at pauses and letting Whisper
 detect each piece separately fixes that, measured on this machine:
 
-    "I already sent the invoice yesterday but клиент до сих пор не ответил"
+    "I already sent the invoice yesterday but" followed by the Russian for
+    "the client still has not answered my letter"
 
     whole utterance -> "...but Client has still not answered my letter"  (wrong)
     per segment     -> "[en] I already sent the invoice yesterday but..."
-                       "[ru] Клиент до сих пор не ответил на моё письмо."
+                       "[ru] (the second half, in Russian, as spoken)"
 
 It only helps when you actually pause at the switch; a seamless switch still
 lands in one language. The cloud backend needs none of this.
@@ -56,7 +57,7 @@ _LANGUAGE_NAMES = NAMES
 # German earns its place by measurement. Nobody pronounces the final -r in
 # "aber": it vocalises to a schwa, so the microphone hears roughly "aba".
 # Coming straight out of Kazakh, where the decoder is already in Cyrillic,
-# that either turns into "Абы" or vanishes. Measured on a clip with the
+# that either turns into "aby" written in Cyrillic or vanishes. Measured on a clip with the
 # reduced pronunciation, "aber" survived 0 times out of 3 without these and
 # 3 out of 3 with them, and five clean clips in other languages came back
 # byte-identical either way.
@@ -82,7 +83,7 @@ def _default_prompt(codes):
     """Builds the steering prompt from the languages the user speaks.
 
     This is load-bearing for accented speech. A short German phrase read in a
-    Russian accent came back as "Эвэрэрджетс пречиечею вдойч", German
+    Russian accent came back as Cyrillic gibberish, the German sounds
     transliterated into Cyrillic, on 6 attempts out of 6. With this prompt it
     came back in Latin script on 6 out of 6.
 
@@ -201,7 +202,7 @@ def _merge_spans(spans, rate, max_segments, min_keep):
     took 22 seconds instead of 3. Merging across the *smallest* gaps first
     keeps the longest pauses as the boundaries, and those are exactly where a
     language actually changes. It also removes the one-word fragments that
-    Whisper likes to misidentify (a stray "потому что" came back as Welsh).
+    Whisper likes to misidentify (a stray Russian "because" came back as Welsh).
     """
     merged = list(spans)
 

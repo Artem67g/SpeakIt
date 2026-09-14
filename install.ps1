@@ -50,6 +50,9 @@
 .PARAMETER NoAutostart
     Do not start SpeakIt when you sign in.
 
+.PARAMETER NoGame
+    Do not open the window with the progress bar and the dinosaur game.
+
 .EXAMPLE
     # Arguments with the one-command install:
     $s = [scriptblock]::Create((irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1))
@@ -65,6 +68,7 @@ param(
     [switch]$SetApiKey,
     [switch]$NoStart,
     [switch]$NoAutostart,
+    [switch]$NoGame,
     [string]$InstallDir,
     [ValidateSet('ask', 'openai', 'local')]
     [string]$Backend = 'ask'
@@ -82,6 +86,14 @@ $SelfPath = $PSCommandPath
 $ErrorActionPreference = 'Stop'
 # Invoke-WebRequest is several times slower while drawing its progress bar.
 $ProgressPreference = 'SilentlyContinue'
+
+# Messages from PowerShell and Windows come out in the Windows display
+# language, mixed in with this script's English ones. Not everyone who reads
+# them, or searches for them, knows that language, so everything is English.
+$SavedUICulture = [Threading.Thread]::CurrentThread.CurrentUICulture
+try {
+    [Threading.Thread]::CurrentThread.CurrentUICulture = [Globalization.CultureInfo]::GetCultureInfo('en-US')
+} catch {}
 
 $AppName      = 'SpeakIt'
 $RepoUrl      = 'https://github.com/Maslitsa/SpeakIt'
@@ -108,6 +120,13 @@ $MaxRootLength = 90
 
 $LegacyName = 'VoiceType'
 $LogFile    = Join-Path $env:TEMP 'SpeakIt-install.log'
+# Read by the progress window, tools\install_game.py.
+$ProgressFile = Join-Path $env:TEMP 'SpeakIt-progress.json'
+
+# Shared with the functions below by changing their contents: a function that
+# assigns a variable gets its own copy.
+$Progress  = @{ Plan = $null; Active = $false }
+$StepTimer = @{ Name = ''; Watch = $null }
 
 # ---------------------------------------------------------------------------
 # Output
@@ -117,7 +136,19 @@ function Write-Log([string]$Text) {
     try { Add-Content -LiteralPath $LogFile -Value $Text -Encoding UTF8 } catch {}
 }
 
+function Complete-StepTime {
+    # How long each step took goes in the log, so a slow install on someone
+    # else's PC shows where the time went.
+    if ($StepTimer.Watch) {
+        Write-Log ("    ({0}: {1}s)" -f $StepTimer.Name, [int]$StepTimer.Watch.Elapsed.TotalSeconds)
+        $StepTimer.Watch = $null
+    }
+}
+
 function Write-Step([string]$Text) {
+    Complete-StepTime
+    $StepTimer.Name = $Text
+    $StepTimer.Watch = [Diagnostics.Stopwatch]::StartNew()
     Write-Host ''
     Write-Host "==> $Text" -ForegroundColor Cyan
     Write-Log "==> $Text"
@@ -175,12 +206,14 @@ if ($SelfPath) {
 }
 $Root = [IO.Path]::GetFullPath($Root)
 
-$UvDir       = Join-Path $Root '.uv'
-$VenvDir     = Join-Path $Root '.venv'
-$VenvPy      = Join-Path $VenvDir 'Scripts\python.exe'
-$VenvPyW     = Join-Path $VenvDir 'Scripts\pythonw.exe'
-$EntryFile   = Join-Path $Root 'run.py'
-$ConfigFile  = Join-Path $Root 'config.json'
+# [IO.Path]::Combine, not Join-Path: Join-Path fails on a drive that does not
+# exist, and out here that error would skip the explanation below.
+$UvDir       = [IO.Path]::Combine($Root, '.uv')
+$VenvDir     = [IO.Path]::Combine($Root, '.venv')
+$VenvPy      = [IO.Path]::Combine($VenvDir, 'Scripts\python.exe')
+$VenvPyW     = [IO.Path]::Combine($VenvDir, 'Scripts\pythonw.exe')
+$EntryFile   = [IO.Path]::Combine($Root, 'run.py')
+$ConfigFile  = [IO.Path]::Combine($Root, 'config.json')
 $StartupDir  = [Environment]::GetFolderPath('Startup')
 $ProgramsDir = [Environment]::GetFolderPath('Programs')
 $StartupLnk  = Join-Path $StartupDir "$AppName.lnk"
@@ -595,8 +628,12 @@ function Assert-CanInstall {
     if ($Root -like '*\OneDrive*') {
         Write-Warning "$Root is inside OneDrive, which will try to sync about a gigabyte of packages. A folder outside it is better."
     }
+    $driveRoot = [IO.Path]::GetPathRoot($Root)
+    if (-not (Test-Path -LiteralPath $driveRoot)) {
+        throw "$driveRoot does not exist on this PC. Choose a folder on another drive with -InstallDir."
+    }
     if (-not (Test-Path -LiteralPath $VenvDir)) {
-        $drive = New-Object IO.DriveInfo ([IO.Path]::GetPathRoot($Root))
+        $drive = New-Object IO.DriveInfo ($driveRoot)
         $freeGB = $drive.AvailableFreeSpace / 1GB
         if ($freeGB -lt $MinFreeGB) {
             throw ("Only {0:N1} GB free on {1}. SpeakIt needs about {2} GB." -f $freeGB, $drive.Name, $MinFreeGB)
@@ -676,6 +713,75 @@ function Test-Venv {
 }
 
 # ---------------------------------------------------------------------------
+# Progress window
+# ---------------------------------------------------------------------------
+
+function Get-InstallPlan {
+    # Rough seconds per step on an ordinary connection. They only steer the
+    # progress bar, and a wrong guess just makes the bar slow down.
+    $fresh = -not (Test-Venv)
+    $plan = New-Object System.Collections.ArrayList
+    if (-not $SelfPath) { [void]$plan.Add(@{ Name = 'project'; Seconds = 5 }) }
+    [void]$plan.Add(@{ Name = 'uv'; Seconds = 5 })
+    if ($fresh) { [void]$plan.Add(@{ Name = 'python'; Seconds = 15 }) }
+    if ($fresh) { $packages = 150 } else { $packages = 20 }
+    [void]$plan.Add(@{ Name = 'packages'; Seconds = $packages })
+    [void]$plan.Add(@{ Name = 'models'; Seconds = 30 })
+    if (-not $NoStart) { [void]$plan.Add(@{ Name = 'start'; Seconds = 40 }) }
+    return ,$plan
+}
+
+function Write-ProgressFile([string]$State, [string]$Label, [double]$Started, [double]$Expected, [double]$Finished, [double]$Share, [double]$After) {
+    # Invariant culture, or a Russian Windows writes 0.25 as 0,25.
+    $json = [string]::Format([Globalization.CultureInfo]::InvariantCulture,
+        '{{"state":"{0}","label":"{1}","started":{2},"expected":{3},"finished_share":{4},"share":{5},"remaining_after":{6}}}',
+        $State, $Label, $Started, $Expected, $Finished, $Share, $After)
+    try {
+        [IO.File]::WriteAllText($ProgressFile, $json, (New-Object Text.UTF8Encoding($false)))
+        $Progress.Active = $true
+    } catch {}
+}
+
+function Set-Progress([string]$Name, [string]$Label) {
+    $plan = $Progress.Plan
+    if (-not $plan) { return }
+    $total = 0.0
+    $before = 0.0
+    $mine = -1.0
+    foreach ($step in $plan) {
+        if ($step.Name -eq $Name) {
+            $mine = [double]$step.Seconds
+        } elseif ($mine -lt 0) {
+            $before += $step.Seconds
+        }
+        $total += $step.Seconds
+    }
+    if ($mine -lt 0 -or $total -le 0) { return }
+    $now = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() / 1000.0
+    Write-ProgressFile 'running' $Label $now $mine ($before / $total) ($mine / $total) ($total - $before - $mine)
+}
+
+function Complete-Progress([string]$State) {
+    if ($Progress.Active) { Write-ProgressFile $State '' 0 1 1 0 0 }
+}
+
+function Start-WaitGame {
+    # A window with the progress bar and a dinosaur game for the long
+    # download. It needs only the tkinter in Python's standard library, so it
+    # can open as soon as the environment exists, before any package does.
+    if ($NoGame -or $env:CI -or [Console]::IsInputRedirected) { return }
+    $game = Join-Path $Root 'tools\install_game.py'
+    if (-not (Test-Path -LiteralPath $game) -or -not (Test-Path -LiteralPath $VenvPyW)) { return }
+    try {
+        $arguments = @(('"{0}"' -f $game), '--progress', ('"{0}"' -f $ProgressFile), '--parent', $PID)
+        Start-Process -FilePath $VenvPyW -ArgumentList $arguments -WorkingDirectory $Root | Out-Null
+        Write-Log '    opened the progress window'
+    } catch {
+        Write-Log "    the progress window did not open: $($_.Exception.Message)"
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Shortcuts and launch
 # ---------------------------------------------------------------------------
 
@@ -706,38 +812,69 @@ function Test-ShortcutPointsHere([string]$Path) {
     }
 }
 
+function Read-LogSince([string]$Path, [long]$Offset) {
+    # Only what this start wrote. The log rotates at 1 MB, so a file shorter
+    # than the offset has started over.
+    try {
+        $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+        try {
+            if ($stream.Length -lt $Offset) { $Offset = 0 }
+            $null = $stream.Seek($Offset, [IO.SeekOrigin]::Begin)
+            $reader = New-Object IO.StreamReader($stream, (New-Object Text.UTF8Encoding($false)))
+            return $reader.ReadToEnd()
+        } finally {
+            $stream.Dispose()
+        }
+    } catch {
+        return ''
+    }
+}
+
 function Start-SpeakIt {
+    $log = Join-Path $Root 'logs\speakit.log'
+    $offset = 0
+    if (Test-Path -LiteralPath $log) { $offset = (Get-Item -LiteralPath $log).Length }
     $proc = Start-Process -FilePath $VenvPyW -ArgumentList ('"{0}"' -f $EntryFile) -WorkingDirectory $Root -PassThru
-    # The app claims its single-instance mutex once its imports are done,
-    # before the model loads. Right after an update that takes far longer
-    # than usual: every file is new, so Python compiles them all again, and
-    # PyTorch is read from a cold disk. A laptop that normally starts in a few
-    # seconds took 29 here, so a slow PC gets two minutes, and one that is
-    # still starting after that is not called a failure.
-    Write-Note 'the first start after installing can take a minute'
-    for ($i = 0; $i -lt 240; $i++) {
-        $mutex = $null
-        if ([Threading.Mutex]::TryOpenExisting($MutexName, [ref]$mutex)) {
-            $mutex.Dispose()
-            Write-Note "running (PID $($proc.Id))"
+
+    # SpeakIt loads its speech engine as it starts and logs the result, so
+    # waiting for that line checks the engine without loading it a second
+    # time. The first start after installing is slow: every file is new to
+    # Python and PyTorch comes off a cold disk, 29 seconds on a fast laptop
+    # before the engine even begins. A slow PC gets three minutes, and one
+    # still loading after that gets a warning rather than a failure.
+    Write-Note 'loading the speech model, the first start can take a minute or two'
+    $broken = 'Engine error|Fatal error'
+    $new = ''
+    for ($i = 0; $i -lt 360; $i++) {
+        Start-Sleep -Milliseconds 500
+        $new = Read-LogSince $log $offset
+        if ($new -match 'Engine ready') {
+            Write-Note "running and ready to dictate (PID $($proc.Id))"
             return
         }
-        if ($proc.HasExited) { break }
-        Start-Sleep -Milliseconds 500
+        if ($new -match $broken -or $proc.HasExited) { break }
     }
-    if (-not $proc.HasExited) {
-        Write-Warning "SpeakIt is still starting (PID $($proc.Id)). If the microphone icon is not in the tray within a minute, double-click CHECKUP.bat in $Root."
+    if ($new -match 'Another instance is already running') {
+        Write-Warning 'Another copy of SpeakIt was already running, so that one stays. Quit it from the tray and start SpeakIt from the Start Menu to use this one.'
         return
     }
-    foreach ($name in @('speakit.log', 'stdout.log')) {
-        $log = Join-Path $Root "logs\$name"
-        if (Test-Path -LiteralPath $log) {
-            Write-Host ''
-            Write-Host "    last lines of logs\$name" -ForegroundColor Yellow
-            Get-Content -LiteralPath $log -Tail 15 | ForEach-Object { Write-Note $_ }
-        }
+    if (-not $proc.HasExited -and $new -notmatch $broken) {
+        Write-Warning "SpeakIt is still loading (PID $($proc.Id)). If the tray icon does not say Ready within a few minutes, double-click CHECKUP.bat in $Root."
+        return
     }
-    throw 'SpeakIt installed but did not start. The log lines above say why.'
+
+    Write-Host ''
+    Write-Host '    what SpeakIt logged' -ForegroundColor Yellow
+    @($new -split "`r?`n" | Where-Object { $_ }) | Select-Object -Last 15 | ForEach-Object { Write-Note $_ }
+    $stdout = Join-Path $Root 'logs\stdout.log'
+    if ((Test-Path -LiteralPath $stdout) -and (Get-Item -LiteralPath $stdout).Length -gt 0) {
+        Write-Host '    last lines of logs\stdout.log' -ForegroundColor Yellow
+        Get-Content -LiteralPath $stdout -Tail 15 | ForEach-Object { Write-Note $_ }
+    }
+    if ($proc.HasExited) {
+        throw 'SpeakIt installed but did not start. The log lines above say why.'
+    }
+    throw 'SpeakIt started, but its speech engine did not load. The log lines above say why.'
 }
 
 # ---------------------------------------------------------------------------
@@ -746,12 +883,14 @@ function Start-SpeakIt {
 
 function Invoke-Install {
     Assert-CanInstall
+    $Progress.Plan = Get-InstallPlan
 
     Write-Step 'Stopping any running copy'
     Stop-SpeakIt
 
     if (-not $SelfPath) {
         Write-Step "Downloading SpeakIt into $Root"
+        Set-Progress 'project' 'Downloading SpeakIt'
         Get-Project
     }
     if (-not (Test-Path -LiteralPath $EntryFile)) {
@@ -770,18 +909,22 @@ function Invoke-Install {
     Set-ProcessEnv 'PYTHONUTF8' '1'
 
     Write-Step 'Getting uv'
+    Set-Progress 'uv' 'Getting ready'
     $uv = Get-Uv
 
     if (-not (Test-Venv)) {
         Write-Step 'Getting Python 3.12 for SpeakIt (your own Python is not touched)'
+        Set-Progress 'python' 'Getting Python'
         Invoke-Native 'Creating the environment' $uv @('venv', '--clear', '--managed-python', '--python', $PythonRequest, $VenvDir)
     }
+    Start-WaitGame
 
     if ($choice) {
         Set-ConfigBackend $choice
     }
 
     Write-Step 'Installing packages (about 1 GB and a few minutes the first time)'
+    Set-Progress 'packages' 'Installing packages, the longest part'
     # The lock file pins every package to the versions this was tested with.
     # --no-build refuses to compile anything from source: every package has a
     # wheel, and the one that did not (halo) ships in vendor/.
@@ -791,8 +934,13 @@ function Invoke-Install {
         (Join-Path $Root 'requirements.lock')
     )
 
-    Write-Step 'Checking the install and downloading the speech models'
-    Invoke-Native 'The check' $VenvPy @((Join-Path $Root 'tools\doctor.py'), '--install')
+    Write-Step 'Checking the install and downloading the speech model'
+    Set-Progress 'models' 'Downloading the speech model'
+    $check = @((Join-Path $Root 'tools\doctor.py'), '--install')
+    # Starting SpeakIt below loads the engine and checks it, so loading it
+    # here as well would only double the wait. -NoStart still checks it here.
+    if (-not $NoStart) { $check += '--no-engine' }
+    Invoke-Native 'The check' $VenvPy $check
 
     Write-Step 'Creating shortcuts'
     if ($NoAutostart) {
@@ -807,8 +955,11 @@ function Invoke-Install {
 
     if (-not $NoStart) {
         Write-Step 'Starting SpeakIt'
+        Set-Progress 'start' 'Starting SpeakIt'
         Start-SpeakIt
     }
+    Complete-StepTime
+    Complete-Progress 'done'
 
     if ($choice -eq 'cloud') {
         $engineState = 'OpenAI'
@@ -872,6 +1023,7 @@ try {
     }
 } catch {
     $failed = $true
+    Complete-Progress 'failed'
     Write-Log "FAILED: $($_.Exception.Message)"
     Write-Log "$($_.ScriptStackTrace)"
     Write-Host ''
@@ -881,6 +1033,7 @@ try {
     Write-Host "  Full log: $LogFile"
     Write-Host "  If you open an issue, attach that file: $RepoUrl/issues"
 } finally {
+    try { [Threading.Thread]::CurrentThread.CurrentUICulture = $SavedUICulture } catch {}
     foreach ($name in $SavedEnv.Keys) {
         [Environment]::SetEnvironmentVariable($name, $SavedEnv[$name], 'Process')
     }
