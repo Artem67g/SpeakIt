@@ -31,10 +31,6 @@ Paste this into PowerShell:
 irm https://raw.githubusercontent.com/Maslitsa/SpeakIt/main/install.ps1 | iex
 ```
 
-You do not need Python. The installer puts its own Python 3.12 inside the
-SpeakIt folder and never uses the one you have, so Python 3.13, the Microsoft
-Store Python, conda, or no Python at all make no difference.
-
 It downloads about 1 GB, installs into `%LOCALAPPDATA%\Programs\SpeakIt`,
 starts SpeakIt with Windows and launches it. Then hold Ctrl+Alt and talk.
 
